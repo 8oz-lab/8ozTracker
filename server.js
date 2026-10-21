@@ -89,7 +89,9 @@ async function check(p) {
   const r = await riot(`${PLATFORM}/lol/spectator/v5/active-games/by-summoner/${p.puuid}`);
   const now = Date.now();
   p.checked = now;
-  if (r.status === 200) {
+  if (r.status === 200 && r.data.gameQueueConfigId !== FLEX_QUEUE_ID) {
+    p.status = 'idle'; p.next = now + IDLE_MS; // anderer Modus: wird nicht angezeigt
+  } else if (r.status === 200) {
     const g = r.data;
     const start = g.gameStartTime || now;
     p.status = 'ingame'; p.queueId = g.gameQueueConfigId; p.start = start;
@@ -127,7 +129,7 @@ app.use(express.static('public', { extensions: ['html'] }));
 app.get('/api/status', (req, res) => {
   const all = [...players.values()];
   const ingame = all.filter(p => p.status === 'ingame').sort((a, b) => a.rank - b.rank)
-    .map(p => ({ rank: p.rank, name: p.name || null, lp: p.lp, tier: p.tier, flex: p.queueId === FLEX_QUEUE_ID, start: p.start }));
+    .map(p => ({ rank: p.rank, name: p.name || null, lp: p.lp, tier: p.tier, start: p.start }));
   res.json({ total: all.length, checked: all.filter(p => p.checked).length, ingame, now: Date.now() });
 });
 app.listen(PORT, () => { console.log('Tracker läuft auf Port', PORT); loop(); });

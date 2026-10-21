@@ -1,37 +1,42 @@
 <!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>8oz Tracker: EUW Flex Live</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"></head>
+<title>8oz Tracker: EUW Flex Live</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
 <body><main><div class="wrap">
   <section class="hero">
     <div>
-      <h1>Wer aus der EUW-Flex-Spitze spielt gerade?</h1>
-      <p class="muted">Der Tracker prüft die Top 1000 der Flex-Ladder auf EUW und zeigt dir live, wer sich gerade in einem Spiel befindet.</p>
-      <a class="btn" href="/live">Live ansehen</a>
+      <h1>Wer aus der EUW-Flex-Spitze spielt gerade Flex?</h1>
+      <p class="muted">Der Tracker prüft die Top 1000 der Flex-Ladder auf EUW und zeigt live, wer sich gerade in einem Flex-Spiel befindet.</p>
+      <div class="btns"><a class="btn" href="/live">Live ansehen</a><a class="btn ghost" href="/about">Über das Projekt</a></div>
+      <div class="stats">
+        <div class="stat"><b><span class="dot"></span><span id="n">–</span></b><span>im Flex-Spiel</span></div>
+        <div class="stat"><b id="t">–</b><span>Spieler in der Liste</span></div>
+        <div class="stat"><b id="c">–</b><span>bereits geprüft</span></div>
+      </div>
     </div>
-    <div class="card">
-      <div class="big"><span class="dot"></span><span id="n">–</span></div>
-      <p class="muted" id="sub">Daten werden geladen …</p>
-      <ul class="list" id="prev"></ul>
-    </div>
+    <img class="art" src="/img/emblem.webp" alt="" width="561" height="520">
   </section>
+  <h2>Jetzt im Flex-Spiel</h2>
+  <div class="card" id="prev"><div class="row muted">Daten werden geladen …</div></div>
+  <p style="margin-top:14px"><a href="/live">Alle anzeigen</a></p>
   <h2>So funktioniert es</h2>
   <section class="facts">
-    <div><h3>Top 1000 der Ladder</h3><p class="muted">Grundlage sind Challenger, Grandmaster und Master der EUW-Flex-Queue, sortiert nach LP.</p></div>
-    <div><h3>Live-Status per Riot-API</h3><p class="muted">Für jeden Spieler wird abgefragt, ob gerade ein Spiel läuft und in welchem Modus.</p></div>
-    <div><h3>Laufend aktualisiert</h3><p class="muted">Die Seite lädt sich alle 15 Sekunden neu. Die Abfragen laufen im Hintergrund auf dem Server.</p></div>
+    <div class="fact"><h3>Top 1000 der Ladder</h3><p class="muted">Grundlage sind Challenger, Grandmaster und Master der EUW-Flex-Queue, sortiert nach LP.</p></div>
+    <div class="fact"><h3>Live-Status per Riot-API</h3><p class="muted">Für jeden Spieler wird geprüft, ob gerade ein Flex-Spiel läuft. Andere Modi werden nicht angezeigt.</p></div>
+    <div class="fact"><h3>Laufend aktualisiert</h3><p class="muted">Die Seite lädt sich alle 15 Sekunden neu. Die Abfragen laufen im Hintergrund auf dem Server.</p></div>
   </section>
 </div></main>
 <script src="/shell.js"></script>
 <script>
+const $=id=>document.getElementById(id);
 async function go(){
   try{
-    const d=await T.status(), list=d.ingame;
-    document.getElementById('n').textContent=list.length;
-    document.getElementById('sub').textContent=d.total?`im Spiel, von ${d.total} Spielern in der Liste (${d.checked} geprüft)`:'Die Ladder wird geladen. Das dauert beim ersten Start einen Moment.';
-    const ul=document.getElementById('prev'); ul.textContent='';
-    list.slice(0,5).forEach(p=>{const li=document.createElement('li');const a=document.createElement('span'),b=document.createElement('span');
-      a.textContent=`#${p.rank} ${p.name||'wird geladen …'}`;b.textContent=T.mins(d,p.start)+' min';b.className='muted';li.append(a,b);ul.append(li);});
-  }catch(e){document.getElementById('sub').textContent='Server nicht erreichbar.';}
+    const d=await T.status();
+    $('n').textContent=d.ingame.length;$('t').textContent=d.total;$('c').textContent=d.checked;
+    const box=$('prev');box.textContent='';
+    if(!d.ingame.length){const r=document.createElement('div');r.className='row muted';r.textContent=d.checked?'Gerade spielt niemand aus der Liste Flex.':'Die ersten Abfragen laufen noch.';box.append(r);return;}
+    d.ingame.slice(0,6).forEach(p=>{const r=document.createElement('div'),a=document.createElement('span'),k=document.createElement('span'),m=document.createElement('span');
+      r.className='row';k.className='r';k.textContent='#'+p.rank;a.append(k,p.name||'wird geladen …');m.className='muted';m.textContent=T.mins(d,p.start)+' min';r.append(a,m);box.append(r);});
+  }catch(e){$('prev').textContent='Server nicht erreichbar.';}
 }
 go();setInterval(go,15000);
 </script></body></html>
