@@ -21,6 +21,8 @@ Dann im Browser `http://localhost:3000` öffnen.
 | `RATE_LIMITS` | `20/1,100/120` | Limits als Anzahl/Sekunden. Production-Key z. B. `500/10,30000/600` |
 | `IDLE_RECHECK_SEC` | 180 | Abstand der Abfragen bei Spielern, die nicht spielen |
 | `INGAME_RECHECK_SEC` | 120 | Abstand bei Spielern, deren Spiel schon länger läuft |
+| `LADDER_REFRESH_SEC` | 600 | Wie oft die Ladder neu geladen wird (erkennt auch, wer gerade ein Spiel beendet hat) |
+| `DATA_FILE` | `state.json` | Datei, in der PUUIDs und Namen für Neustarts gesichert werden |
 
 ## Hosting als Node.js Web-App
 

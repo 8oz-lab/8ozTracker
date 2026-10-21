@@ -1,6 +1,6 @@
 // Gemeinsamer Rahmen (Kopfzeile mit Logo, Fußzeile) und Datenhelfer
 (function () {
-  const pages = [['/', 'Start'], ['/live', 'Live'], ['/about', 'Über']];
+  const pages = [['/', 'Start'], ['/live', 'Live'], ['/recent', 'Zuletzt gespielt'], ['/about', 'Über']];
   const path = location.pathname.replace(/\.html$/, '').replace(/index$/, '') || '/';
   const nav = pages.map(([h, t]) => `<a href="${h}"${h === path ? ' aria-current="page"' : ''}>${t}</a>`).join('');
   document.body.insertAdjacentHTML('afterbegin',

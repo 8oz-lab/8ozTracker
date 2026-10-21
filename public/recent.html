@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zuletzt gespielt: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
+<body><main><div class="wrap">
+  <h1>Zuletzt gespielt</h1>
+  <p class="muted">Spieler, deren Flex-Spiel in der letzten Stunde zu Ende ging und die gerade nicht mehr im Spiel sind. Der Zeitpunkt ist auf wenige Minuten genau.</p>
+  <div class="bar">
+    <div><span class="count" id="count">–</span> <span class="muted">Spieler</span></div>
+    <input type="search" id="q" placeholder="Spieler suchen" aria-label="Spieler suchen">
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Rang</th><th>Spieler</th><th>LP</th><th>Spiel beendet</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</div></main>
+<script src="/shell.js"></script>
+<script>
+let d=null;const $=id=>document.getElementById(id);
+async function load(){try{d=await T.status();render();}catch(e){$('rows').textContent='Server nicht erreichbar. Neuer Versuch in 15 Sekunden.';}}
+function render(){
+  if(!d)return;
+  const q=$('q').value.trim().toLowerCase();
+  const list=(d.recent||[]).filter(p=>!q||(p.name||'').toLowerCase().includes(q));
+  $('count').textContent=(d.recent||[]).length;
+  const rows=$('rows');rows.textContent='';
+  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=4;td.className='empty';
+    td.textContent=q?'Kein Treffer.':'Noch keine beendeten Flex-Spiele erfasst. Die Liste füllt sich, sobald Spiele zu Ende gehen.';return;}
+  for(const p of list){
+    const tr=rows.insertRow(),m=T.mins(d,p.endedAt);
+    tr.insertCell().textContent='#'+p.rank;
+    tr.insertCell().textContent=p.name||'wird geladen …';
+    tr.insertCell().textContent=p.lp;
+    tr.insertCell().textContent=m<1?'gerade eben':'vor '+m+' min';
+    tr.cells[0].className='num rank';tr.cells[2].className=tr.cells[3].className='num';
+  }
+}
+$('q').addEventListener('input',render);
+load();setInterval(load,15000);setInterval(render,30000);
+</script></body></html>
