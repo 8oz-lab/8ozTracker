@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EUW Flex: Wer spielt gerade?</title>
+<style>
+  :root { --bg:#f4f6f9; --surface:#fff; --ink:#0a1428; --muted:#5b6b82; --line:#d9dfe8; --gold:#8a6a1f; --flex:#0b6e7a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0a1428; --surface:#101d36; --ink:#eef1f6; --muted:#93a2ba; --line:#223557; --gold:#c8aa6e; --flex:#4cc3d1; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .bar { display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .count { font-size:2.4rem; font-weight:700; color:var(--gold); line-height:1; }
+  label { color:var(--muted); cursor:pointer; }
+  table { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--line); }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+  th { font-weight:600; color:var(--muted); font-size:.9rem; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .tag { color:var(--flex); font-weight:600; }
+  .empty { padding:24px 12px; color:var(--muted); }
+  .wrap { overflow-x:auto; }
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>EUW Flex: Wer spielt gerade?</h1>
+  <p class="sub" id="meta">Lade Daten …</p>
+  <div class="bar">
+    <div><span class="count" id="count">–</span> <span class="sub">Spieler im Spiel</span></div>
+    <label><input type="checkbox" id="flexOnly"> Nur Flex-Spiele</label>
+  </div>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Rang</th><th>Spieler</th><th>LP</th><th>Modus</th><th>Spielzeit</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+<script>
+  let data = null;
+  const $ = id => document.getElementById(id);
+
+  async function load() {
+    try {
+      const r = await fetch('/api/status');
+      data = await r.json();
+      data.fetched = Date.now();
+      render();
+    } catch (e) { $('meta').textContent = 'Server nicht erreichbar. Neuer Versuch in 15 Sekunden.'; }
+  }
+
+  function render() {
+    if (!data) return;
+    const list = data.ingame.filter(p => !$('flexOnly').checked || p.flex);
+    $('count').textContent = list.length;
+    $('meta').textContent = data.total
+      ? `${data.checked} von ${data.total} Spielern wurden bereits geprüft.`
+      : 'Die Ladder wird geladen. Das dauert beim ersten Start einen Moment.';
+    const rows = $('rows');
+    rows.textContent = '';
+    if (!list.length) {
+      const tr = rows.insertRow(), td = tr.insertCell();
+      td.colSpan = 5; td.className = 'empty';
+      td.textContent = data.checked ? 'Gerade spielt niemand aus der Liste.' : 'Noch keine Ergebnisse. Die ersten Abfragen laufen.';
+      return;
+    }
+    const elapsed = Date.now() - data.fetched;
+    for (const p of list) {
+      const tr = rows.insertRow();
+      const mins = Math.max(0, Math.floor((data.now + elapsed - p.start) / 60000));
+      tr.insertCell().textContent = '#' + p.rank;
+      tr.insertCell().textContent = p.name || 'wird geladen …';
+      tr.insertCell().textContent = p.lp;
+      const m = tr.insertCell(); m.textContent = p.flex ? 'Flex' : 'Anderer Modus'; if (p.flex) m.className = 'tag';
+      tr.insertCell().textContent = mins + ' min';
+      tr.cells[0].className = tr.cells[2].className = tr.cells[4].className = 'num';
+    }
+  }
+
+  $('flexOnly').addEventListener('change', render);
+  load(); setInterval(load, 15000); setInterval(render, 30000);
+</script>
+</body>
+</html>
