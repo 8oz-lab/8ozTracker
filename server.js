@@ -123,7 +123,7 @@ async function loop() {
 
 // --- Web ---
 const app = express();
-app.use(express.static('public'));
+app.use(express.static('public', { extensions: ['html'] }));
 app.get('/api/status', (req, res) => {
   const all = [...players.values()];
   const ingame = all.filter(p => p.status === 'ingame').sort((a, b) => a.rank - b.rank)

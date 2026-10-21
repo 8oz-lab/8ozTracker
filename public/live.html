@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live: 8oz Tracker</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"></head>
+<body><main><div class="wrap">
+  <h1>Jetzt im Spiel</h1>
+  <p class="muted" id="meta">Lade Daten …</p>
+  <div class="bar">
+    <div><span class="count" id="count">–</span> <span class="muted">Spieler im Spiel</span></div>
+    <label><input type="checkbox" id="flexOnly"> Nur Flex-Spiele</label>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Rang</th><th>Spieler</th><th>LP</th><th>Modus</th><th>Spielzeit</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</div></main>
+<script src="/shell.js"></script>
+<script>
+let d=null; const $=id=>document.getElementById(id);
+async function load(){try{d=await T.status();render();}catch(e){$('meta').textContent='Server nicht erreichbar. Neuer Versuch in 15 Sekunden.';}}
+function render(){
+  if(!d)return;
+  const list=d.ingame.filter(p=>!$('flexOnly').checked||p.flex);
+  $('count').textContent=list.length;
+  $('meta').textContent=d.total?`${d.checked} von ${d.total} Spielern wurden bereits geprüft.`:'Die Ladder wird geladen. Das dauert beim ersten Start einen Moment.';
+  const rows=$('rows'); rows.textContent='';
+  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=5;td.className='empty';
+    td.textContent=d.checked?'Gerade spielt niemand aus der Liste.':'Noch keine Ergebnisse. Die ersten Abfragen laufen.';return;}
+  for(const p of list){
+    const tr=rows.insertRow();
+    tr.insertCell().textContent='#'+p.rank;
+    tr.insertCell().textContent=p.name||'wird geladen …';
+    tr.insertCell().textContent=p.lp;
+    const m=tr.insertCell();m.textContent=p.flex?'Flex':'Anderer Modus';if(p.flex)m.className='tag';
+    tr.insertCell().textContent=T.mins(d,p.start)+' min';
+    [0,2,4].forEach(i=>tr.cells[i].className='num');
+  }
+}
+$('flexOnly').addEventListener('change',render);
+load();setInterval(load,15000);setInterval(render,30000);
+</script></body></html>
