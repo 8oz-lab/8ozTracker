@@ -3,35 +3,38 @@
 <title>Zuletzt gespielt: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
 <body><main><div class="wrap">
   <h1>Zuletzt gespielt</h1>
-  <p class="muted">Spieler, deren Flex-Spiel in der letzten Stunde zu Ende ging und die gerade nicht mehr im Spiel sind. Der Zeitpunkt ist auf wenige Minuten genau.</p>
+  <p class="muted">Spieler, deren Flex-Spiel in der letzten Stunde zu Ende ging und die gerade nicht mehr im Spiel sind. Der Zeitpunkt ist auf wenige Minuten genau. Klicke auf eine Zeile, um Champions und Teams zu sehen, sofern wir das Spiel live gesehen haben.</p>
   <div class="bar">
     <div><span class="count" id="count">–</span> <span class="muted">Spieler</span></div>
     <input type="search" id="q" placeholder="Spieler suchen" aria-label="Spieler suchen">
   </div>
   <div class="scroll"><table>
-    <thead><tr><th>Rang</th><th>Spieler</th><th>LP</th><th>Spiel beendet</th></tr></thead>
+    <thead><tr><th>Rang</th><th>Spieler</th><th>Champion</th><th>LP</th><th>Spiel beendet</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
 </div></main>
 <script src="/shell.js"></script>
 <script>
 let d=null;const $=id=>document.getElementById(id);
-async function load(){try{d=await T.status();render();}catch(e){$('rows').textContent='Server nicht erreichbar. Neuer Versuch in 15 Sekunden.';}}
+async function load(){try{await T.ready;d=await T.status();render();}catch(e){$('rows').textContent='Server nicht erreichbar. Neuer Versuch in 15 Sekunden.';}}
 function render(){
   if(!d)return;
   const q=$('q').value.trim().toLowerCase();
   const list=(d.recent||[]).filter(p=>!q||(p.name||'').toLowerCase().includes(q));
   $('count').textContent=(d.recent||[]).length;
   const rows=$('rows');rows.textContent='';
-  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=4;td.className='empty';
+  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=5;td.className='empty';
     td.textContent=q?'Kein Treffer.':'Noch keine beendeten Flex-Spiele erfasst. Die Liste füllt sich, sobald Spiele zu Ende gehen.';return;}
   for(const p of list){
     const tr=rows.insertRow(),m=T.mins(d,p.endedAt);
     tr.insertCell().textContent='#'+p.rank;
     tr.insertCell().textContent=p.name||'wird geladen …';
+    const cc=tr.insertCell();
+    if(p.c){const c=T.champ(p.c),w=document.createElement('span');w.className='chm';w.append(T.icon(p.c,26),c.name);cc.append(w);}else{cc.textContent='–';cc.className='muted';cc.title='Spiel nicht live gesehen';}
     tr.insertCell().textContent=p.lp;
     tr.insertCell().textContent=m<1?'gerade eben':'vor '+m+' min';
-    tr.cells[0].className='num rank';tr.cells[2].className=tr.cells[3].className='num';
+    tr.cells[0].className='num rank';tr.cells[3].className=tr.cells[4].className='num';
+    T.expandable(rows,tr,p,5,'Zuletzt live gesehener Stand dieses Spiels. Ergebnis und KDA sind nicht bekannt.');
   }
 }
 $('q').addEventListener('input',render);

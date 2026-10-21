@@ -4,6 +4,7 @@
 <body><main><div class="wrap">
   <h1>Jetzt im Flex-Spiel</h1>
   <p class="muted" id="meta">Lade Daten …</p>
+  <p class="muted">Klicke auf eine Zeile, um Champions, Teams und Bans der laufenden Partie zu sehen.</p>
   <div class="bar">
     <div><span class="count" id="count">–</span> <span class="muted">Spieler im Flex-Spiel</span></div>
     <input type="search" id="q" placeholder="Spieler suchen" aria-label="Spieler suchen">
@@ -33,6 +34,7 @@ function render(){
     tr.insertCell().textContent=p.lp;
     tr.insertCell().textContent=T.mins(d,p.start)+' min';
     tr.cells[0].className='num rank';tr.cells[2].className=tr.cells[3].className='num';
+    T.expandable(rows,tr,p,4);
   }
 }
 $('q').addEventListener('input',render);
