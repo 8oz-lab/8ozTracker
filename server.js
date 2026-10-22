@@ -514,12 +514,13 @@ function analyzeTimeline(t, puuid, team) {
   const frames = t && t.info && t.info.frames; if (pi < 0 || !Array.isArray(frames)) return null;
   const pid = pi + 1;
   const pos = k => { const f = frames[k], pf = f && f.participantFrames && f.participantFrames[pid]; return pf && pf.position ? [pf.position.x, pf.position.y] : null; };
-  // Startseite: obere oder untere Jungle-Seite (Position bei Minute 2/3 auf der eigenen Kartenhälfte); Invade-Start: schon dort auf der gegnerischen Seite
+  // Startseite: obere oder untere Jungle-Seite (Position bei Minute 1 (Rückfall Minute 2/3)); Invade-Start: schon dort auf der gegnerischen Seite
   let sb = 'other';
-  for (const k of [2, 3]) {
+  // Entscheidend ist Minute 1 (Spieler läuft zum ersten Camp); Minute 2/3 nur als Rückfall, falls Minute 1 noch zu nah an der Basis ist
+  for (const k of [1, 2, 3]) {
     const p = pos(k); if (!p) continue;
-    if (ownHalf(p, team) && Math.abs(p[1] - p[0]) > 1200) { sb = p[1] > p[0] ? 'top' : 'bot'; break; }
     if (inEnemyJungle(p, team)) { sb = 'invade'; break; }
+    if (Math.abs(p[1] - p[0]) > (k === 1 ? 700 : 1200) && (k === 1 || ownHalf(p, team))) { sb = p[1] > p[0] ? 'top' : 'bot'; break; }
   }
   let inv = 0, seen = 0;
   for (let k = 2; k <= 5; k++) { const p = pos(k); if (!p) continue; seen++; if (inEnemyJungle(p, team)) inv++; }
@@ -539,7 +540,7 @@ function analyzeTimeline(t, puuid, team) {
       if (e.killerId === pid) k++; else if ((e.assistingParticipantIds || []).includes(pid)) a++;
     }
   }
-  return { sb, inv, seen, g, wm, cs, k, a };
+  return { sb, inv, seen, g, wm, cs, k, a, t: team, pp: [1, 2, 3].map(pos) };
 }
 function aggEarly(list) {
   const r = { n: list.length, start: { top: 0, bot: 0, invade: 0, other: 0 }, invGames: 0, invFrames: 0, invSeen: 0, g: { top: 0, mid: 0, bot: 0, jg: 0 } };
@@ -549,6 +550,8 @@ function aggEarly(list) {
     for (const k of Object.keys(r.g)) r.g[k] += x.g[k];
     if (x.cs != null) { an++; csm += x.cs / x.wm; ka += (x.k + x.a) * 20 / x.wm; kk += x.k * 20 / x.wm; aa += x.a * 20 / x.wm; }
   }
+  r.pts = [];
+  for (const x of list) (x.pp || []).forEach((p, i) => { if (p) r.pts.push([i + 1, Math.round(p[0]), Math.round(p[1]), x.t]); });
   r.gankTotal = r.g.top + r.g.mid + r.g.bot + r.g.jg;
   r.style = an ? { n: an, csMin: csm / an, ka: ka / an, k: kk / an, a: aa / an } : null;
   return r;

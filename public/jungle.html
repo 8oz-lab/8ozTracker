@@ -125,6 +125,33 @@ function tile(label,big,sub,l,tone){
   const t=el('div','etile lv'+l+(tone?' tone-'+tone:''));
   t.append(el('span','elab',label),el('b',null,big));if(sub)t.append(el('span','esub',sub));t.append(chip(l,tone));return t;
 }
+
+// Minimap: Position des Junglers bei Minute 1 bis 3 in allen ausgewerteten Spielen (Daten stammen aus der ohnehin geladenen Timeline)
+let mapMirror=true;
+function paintMap(box,r){
+  if(!r.pts||!r.pts.length)return;
+  const S=14870,NS='http://www.w3.org/2000/svg',sv=(t,a)=>{const n=document.createElementNS(NS,t);for(const k in a)n.setAttribute(k,a[k]);return n;};
+  const wrap=el('div','emap');wrap.append(el('h3',null,tt('Position bei Minute 1 bis 3')));
+  const ctl=el('label','muted small mirror'),cb=el('input');cb.type='checkbox';cb.checked=mapMirror;ctl.append(cb,' ',tt('Rote Seite auf blaue Seite spiegeln'));
+  const COL={1:'#f0c24b',2:'#5aa9ff',3:'#4fd08a'};
+  const svg=sv('svg',{viewBox:'0 0 '+S+' '+S,class:'mapsvg',role:'img','aria-label':tt('Position bei Minute 1 bis 3')});
+  svg.append(sv('rect',{width:S,height:S,fill:'#0f1424'}));
+  if(T.champs&&T.champs.v){const im=sv('image',{href:'https://ddragon.leagueoflegends.com/cdn/'+T.champs.v+'/img/map/map11.png',width:S,height:S,opacity:'.55'});im.addEventListener('error',()=>im.remove());svg.append(im);}
+  svg.append(sv('line',{x1:0,y1:S,x2:S,y2:0,stroke:'#ffffff',opacity:'.12','stroke-width':160}));
+  const g=sv('g',{});svg.append(g);
+  function draw(){
+    g.textContent='';
+    r.pts.forEach(([m,x,y,t])=>{
+      if(mapMirror&&t===200){x=S-x;y=S-y;}
+      const c=sv('circle',{cx:x,cy:S-y,r:170,fill:COL[m],'fill-opacity':.7,stroke:'#0b0e1a','stroke-width':30});
+      const tl=sv('title',{});tl.textContent=tt('Minute {m}',{m});c.append(tl);g.append(c);
+    });
+  }
+  cb.addEventListener('change',()=>{mapMirror=cb.checked;draw();});draw();
+  const lg=el('div','elegend');[1,2,3].forEach(m=>{const s=el('span','mleg');const d=el('i','mdot');d.style.background=COL[m];s.append(d,tt('Minute {m}',{m}));lg.append(s);});
+  wrap.append(svg,lg,ctl,el('p','muted small',tt('Jeder Punkt ist ein Spiel. Riot speichert die Position nur einmal pro Minute. Die Karte zeigt die echten Koordinaten, mit der Spiegelung siehst du alle Spiele aus Sicht der blauen Seite.')));
+  box.append(wrap);
+}
 function paintEarly(){
   let box=$('early');
   if(!box){box=el('section','early');box.id='early';$('out').append(box);}
@@ -166,12 +193,13 @@ function paintEarly(){
     kv.append(k1,k2,k3);g.append(kv);box.append(g);
   }
   // Gank-Lanes
+  paintMap(box,r);
   box.append(el('h3',null,tt('Wo er Kills und Assists bekommt (bis Minute 14)')));
   const bars=el('div','ebars'),L=[['top',tt('Top')],['mid',tt('Mid')],['bot',tt('Bot')],['jg',tt('Jungle/Fluss')]];
   L.forEach(([k,n])=>{const v=r.g[k],sh=r.gankTotal?v/r.gankTotal:0,l=lvl(sh,T_LANE),row=el('div','eb'),m=el('div','meter lv'+l),i=el('i');i.style.width=Math.round(sh*100)+'%';m.append(i);row.append(el('span',null,n),m,el('span',null,pc(v,r.gankTotal)+' ('+v+')'));bars.append(row);});
   box.append(bars);
   const lg=el('div','elegend');lg.append(el('span','muted small',tt('Farbe = Stärke der Tendenz:')));[0,1,2,3].forEach(l=>lg.append(chip(l)));box.append(lg);
-  box.append(el('p','muted small',tt('So wird gerechnet: Die Startseite ergibt sich aus der Position bei Minute 2 und 3 (Riot speichert die Position nur einmal pro Minute, es ist also eine Näherung): obere oder untere Hälfte der Karte auf der eigenen Seite des Flusses. Als Invade gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war. Gezählt werden nur Ganks mit Kill oder Assist, Ganks ohne Ergebnis sind in den Daten nicht sichtbar. Der Spielstil vergleicht CS pro Minute und Kills plus Assists bis Minute 20 mit Richtwerten für Jungler (6,6 CS/min, 6 Kills und Assists); die Richtwerte sind Schätzungen. Das Ergebnis ist aus höchstens {m} Jungle-Spielen.',{m:e.max||20})));
+  box.append(el('p','muted small',tt('So wird gerechnet: Die Startseite ergibt sich aus der Position bei Minute 1 (Rückfall Minute 2 und 3; Riot speichert die Position nur einmal pro Minute, es ist also eine Näherung): obere oder untere Hälfte der Karte auf der eigenen Seite des Flusses. Als Invade gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war. Gezählt werden nur Ganks mit Kill oder Assist, Ganks ohne Ergebnis sind in den Daten nicht sichtbar. Der Spielstil vergleicht CS pro Minute und Kills plus Assists bis Minute 20 mit Richtwerten für Jungler (6,6 CS/min, 6 Kills und Assists); die Richtwerte sind Schätzungen. Das Ergebnis ist aus höchstens {m} Jungle-Spielen.',{m:e.max||20})));
 }
 $('f').addEventListener('submit',e=>{e.preventDefault();start($('q').value);});
 const q0=new URLSearchParams(location.search).get('q');

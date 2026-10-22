@@ -329,3 +329,6 @@ footer .disc{font-size:.78rem;line-height:1.5;color:#7d7b92;border-top:1px solid
 .hero .art{max-width:520px;margin-left:auto}
 .stat b span{font-size:inherit;color:inherit}
 @media (max-width:600px){.budget{bottom:8px;right:8px;transform:scale(.85);transform-origin:bottom right;opacity:.92}}
+.emap{margin:1.5rem 0}.mapsvg{display:block;width:100%;max-width:420px;aspect-ratio:1;border:1px solid var(--line,#2a3150);border-radius:12px;background:#0f1424}
+.emap .elegend{margin:.6rem 0}.mleg{display:inline-flex;align-items:center;gap:.4rem;margin-right:1rem;font-size:.9rem}.mdot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.mirror{display:block;margin:.4rem 0;cursor:pointer}
