@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jungle Tendencies: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
+<body><main><div class="wrap">
+  <h1 data-i18n>Jungle Tendencies</h1>
+  <p class="muted" data-i18n>Suche einen Spieler und sieh, wie oft er in seinen letzten 20 Flex-Spielen Jungle gespielt hat und mit welchen Champions. Für Spieler aus den Top 1000 reicht auch der Name oder der Ladder-Platz (z. B. <code>#25</code>), alle anderen suchst du mit Name#Tag.</p>
+  <form class="sbox" id="f"><input type="search" id="q" placeholder="Name#Tag" maxlength="60" autocomplete="off" aria-label="Riot-ID" data-ia="aria-label"><button id="go" type="submit" data-i18n>Suchen</button></form>
+  <div class="pstate" id="st" aria-live="polite"></div>
+  <div id="out"></div>
+</div></main>
+<script src="/i18n.js"></script><script src="/shell.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+const TIER={challenger:'Challenger',grandmaster:'Grandmaster',master:'Master',diamond:'Diamond',emerald:'Emerald',platinum:'Platinum',gold:'Gold',silver:'Silver',bronze:'Bronze',iron:'Iron'};
+const APEX=['challenger','grandmaster','master'], SHARE=0.7;
+let timer=null, run=0, etimer=null, early=null, lastQ='';
+let lastD=null;
+const f1=n=>(Math.round(n*10)/10).toLocaleString(I18N.locale,{minimumFractionDigits:1,maximumFractionDigits:1});
+const kdaR=(k,d,a)=>d?((k+a)/d):(k+a);
+
+function start(q){
+  q=q.trim();if(!q)return;
+  clearTimeout(timer);clearTimeout(etimer);early=null;lastQ=q;const my=++run;$('q').value=q;$('out').textContent='';
+  try{history.replaceState(null,'','/jungle?q='+encodeURIComponent(q));}catch(e){}
+  poll(q,my);
+}
+async function poll(q,my){
+  if(my!==run)return;
+  $('go').disabled=true;
+  let r,d;
+  try{r=await fetch('/api/player?q='+encodeURIComponent(q));d=await r.json();}
+  catch(e){if(my!==run)return;status(tt('Server nicht erreichbar. Bitte später erneut versuchen.'),true);$('go').disabled=false;return;}
+  if(my!==run)return;
+  if(!r.ok){status(T.err(d),true);$('go').disabled=false;return;}
+  if(d.state==='choose'){choose(d);$('go').disabled=false;return;}
+  await T.ready;
+  render(d);
+  if(d.state==='queued'||d.state==='running')timer=setTimeout(()=>poll(q,my),d.state==='queued'?2000:1200);
+  else{$('go').disabled=false;if(d.state==='done'&&d.matches.some(m=>m.pos==='JUNGLE'&&!m.e))pollEarly(q,my);}
+}
+function status(msg,err,frac){
+  const s=$('st');s.textContent='';s.className='pstate'+(err?' err':'');
+  if(!msg)return;s.append(msg);
+  if(frac!=null){const b=el('div','pbar'),i=el('i');i.style.width=Math.round(frac*100)+'%';b.append(i);s.append(b);}
+}
+function choose(d){
+  status(tt('Mehrere Spieler gefunden. Wähle einen aus:'));
+  const box=el('div','opts');
+  d.options.forEach(o=>{const a=el('a');a.href='/jungle?q='+encodeURIComponent(o.n);a.append(el('b',null,'#'+o.r),o.n);a.addEventListener('click',e=>{e.preventDefault();start(o.n);});box.append(a);});
+  $('out').textContent='';$('out').append(box);
+}
+
+function render(d){
+  if(d.state==='error'){status(T.err(d),true);$('out').textContent='';return;}
+  lastD=d;
+  if(d.state==='queued')status(d.pos>1?tt('In der Warteschlange: Platz {p}. Es läuft immer nur eine Suche gleichzeitig.',{p:d.pos}):tt('Die Suche startet gleich …'));
+  else if(d.state==='running')d.total?status(tt('Lade Spiele … {a} von {b}',{a:d.loaded,b:d.total}),false,d.loaded/d.total):status(tt('Suche läuft … Spieler und Rang werden geladen.'));
+  else status(d.matches.length?'':tt('Für diesen Spieler wurden keine Flex-Spiele gefunden.'));
+  const out=$('out');out.textContent='';
+  if(d.prof)out.append(head(d.prof));
+  const real=d.matches.filter(m=>!m.e);
+  if(real.length)out.append(body(real,d.state==='done'));
+  if(d.state==='done'&&d.cached)out.append(el('p','muted small',tt('Dieses Ergebnis stammt aus dem Zwischenspeicher und wird nach etwa 15 Minuten neu geladen.')));
+}
+function head(p){
+  const box=el('section','prof'),left=el('div');left.append(el('h2',null,p.name||tt('Spieler')));
+  const b=el('div','badges');
+  if(p.tier){b.append(el('span','badge gold',(TIER[p.tier]||p.tier)+(APEX.includes(p.tier)||!p.div?'':' '+p.div)+' · '+p.lp+' LP'));if(p.rank)b.append(el('span','badge',tt('Platz #{r} der Flex-Ladder',{r:p.rank})));}
+  else if(p.unranked)b.append(el('span','badge',tt('Kein Flex-Rang')));
+  left.append(b);box.append(left);
+  if(p.name){const a=el('a','btn ghost',tt('Alle Spiele ansehen'));a.href='/player?q='+encodeURIComponent(p.name);box.append(a);}
+  return box;
+}
+function body(ms,final){
+  const jg=ms.filter(m=>m.pos==='JUNGLE'),n=ms.length,share=jg.length/n,box=el('div');
+  const sum=el('section','sum');
+  const t1=el('div','tile');t1.append(el('b',null,Math.round(100*share)+' %'),el('span',null,tt('{j} von {n} Spielen als Jungle',{j:jg.length,n})));
+  const w=jg.filter(m=>m.w).length;
+  const t2=el('div','tile');t2.append(el('b',null,jg.length?Math.round(100*w/jg.length)+' %':'–'),el('span',null,jg.length?tt('Winrate im Jungle ({w} / {l})',{w,l:jg.length-w}):tt('Kein Jungle-Spiel')));
+  let k=0,de=0,a=0,cs=0,mins=0;jg.forEach(m=>{k+=m.k;de+=m.de;a+=m.a;cs+=m.cs;mins+=m.d/60;});
+  const t3=el('div','tile');t3.append(el('b',null,jg.length?tt('{k} KDA',{k:f1(kdaR(k,de,a))}):'–'),el('span',null,jg.length?tt('Ø {k} / {d} / {a}',{k:f1(k/jg.length),d:f1(de/jg.length),a:f1(a/jg.length)}):''));
+  const t4=el('div','tile'),verdict=tt(!jg.length?'Kein Jungler':share>SHARE?'Jungler':'Gelegentlich Jungle');
+  t4.append(el('b',null,verdict),el('span',null,tt(share>SHARE?'Mehr als 70 % der Spiele im Jungle':'Jungler ab mehr als 70 % der Spiele')));
+  sum.append(t1,t2,t3,t4);box.append(sum);
+  const cv=T.carry(jg,'Carry-Score im Jungle');if(cv)box.append(cv);
+  if(!final)box.append(el('p','muted small',tt('Die Werte ändern sich noch, bis alle Spiele geladen sind.')));
+  if(!jg.length)return box;
+  const by={};jg.forEach(m=>{const c=by[m.c]||(by[m.c]={n:0,w:0,k:0,d:0,a:0,cs:0,t:0});c.n++;if(m.w)c.w++;c.k+=m.k;c.d+=m.de;c.a+=m.a;c.cs+=m.cs;c.t+=m.d/60;});
+  const rows=Object.entries(by).sort((x,y)=>y[1].n-x[1].n||y[1].w-x[1].w);
+  box.append(el('h2',null,tt('Jungle-Champions')));
+  const sc=el('div','scroll'),tb=el('table','jgc'),thead=tb.createTHead().insertRow();
+  ['Champion','Spiele','Winrate','KDA','CS/min'].forEach((h,i)=>{const c=el('th',null,tt(h));if(i)c.className='num';thead.append(c);});
+  const body=tb.createTBody();
+  rows.forEach(([c,v])=>{
+    const tr=body.insertRow(),ch=T.champ(c),cell=tr.insertCell(),w=el('span','chm');w.append(T.icon(c,26),ch.name);cell.append(w);
+    const add=(x)=>{const e=tr.insertCell();e.textContent=x;e.className='num';};
+    add(v.n);add(Math.round(100*v.w/v.n)+' % ('+v.w+'/'+(v.n-v.w)+')');add(f1(kdaR(v.k,v.d,v.a)));add(f1(v.cs/Math.max(1,v.t)));
+  });
+  sc.append(tb);box.append(sc);
+  const others=ms.filter(m=>m.pos!=='JUNGLE'&&m.pos),oc={};others.forEach(m=>oc[m.pos]=(oc[m.pos]||0)+1);
+  const R={TOP:tt('Top'),MIDDLE:tt('Mid'),BOTTOM:tt('Bot'),UTILITY:tt('Support')};
+  if(others.length)box.append(el('p','muted small',tt('Andere Rollen in diesen Spielen: {r}.',{r:Object.entries(oc).sort((x,y)=>y[1]-x[1]).map(([r,c])=>(R[r]||r)+' '+c).join(', ')})));
+  return box;
+}
+
+async function pollEarly(q,my){
+  if(my!==run)return;
+  let r,d;
+  try{r=await fetch('/api/early?q='+encodeURIComponent(q));d=await r.json();}catch(e){return;}
+  if(my!==run)return;
+  if(!r.ok){early={state:'error',error:d.error?T.err(d):tt('Early-Game-Daten nicht verfügbar.')};}
+  else early=d;
+  paintEarly();
+  if(r.ok&&(d.state==='queued'||d.state==='running'))etimer=setTimeout(()=>pollEarly(q,my),1500);
+}
+// Stärke einer Tendenz: 0 gering, 1 leicht, 2 deutlich, 3 stark (Schwellen je Kennzahl)
+const LVN=['gering','leicht','deutlich','stark'];
+const lvl=(v,t)=>v>=t[2]?3:v>=t[1]?2:v>=t[0]?1:0;
+const T_START=[0.55,0.65,0.80], T_INV=[0.15,0.30,0.50], T_LANE=[0.22,0.33,0.45], T_STYLE=[0.25,0.6,1.0];
+// Richtwerte für einen Jungler bis Minute 20: etwa 6,6 CS/min und 6 Kills+Assists (pro 20 Min.)
+const CS0=6.6, CSS=0.8, KA0=6, KAS=2.5;
+function chip(l,tone){const c=el('span','lchip lv'+l+(tone?' tone-'+tone:''));c.append(el('i','ldot'),tt(LVN[l]));return c;}
+function tile(label,big,sub,l,tone){
+  const t=el('div','etile lv'+l+(tone?' tone-'+tone:''));
+  t.append(el('span','elab',label),el('b',null,big));if(sub)t.append(el('span','esub',sub));t.append(chip(l,tone));return t;
+}
+function paintEarly(){
+  let box=$('early');
+  if(!box){box=el('section','early');box.id='early';$('out').append(box);}
+  box.textContent='';
+  const e=early;if(!e)return;
+  box.append(el('h2',null,tt('Early Game')));
+  if(e.state==='error'){box.append(el('p','muted',e.et?tt(e.et):e.error));return;}
+  if(e.state==='queued'){box.append(el('p','muted',e.pos>1?tt('Early-Game-Daten warten in der Schlange (Platz {p}).',{p:e.pos}):tt('Early-Game-Daten werden gleich geladen …')));return;}
+  const r=e.result;
+  if(e.state==='running'||!r){box.append(el('p','muted',tt('Lade Early-Game-Daten … {a} von {b} Spielen',{a:e.loaded,b:e.total})));if(!r||!r.n)return;}
+  if(!r.n){box.append(el('p','muted',tt('Keine auswertbaren Jungle-Spiele gefunden.')));return;}
+  const pc=(a,b)=>b?Math.round(100*a/b)+' %':'–';
+  const sum=el('section','esum');
+  // Startseite
+  const tb=r.start.top+r.start.bot, topS=tb?r.start.top/tb:0, domTop=r.start.top>=r.start.bot, dom=tb?Math.max(topS,1-topS):0;
+  const sl=tb?lvl(dom,T_START):0;
+  sum.append(tile(tt('Startseite'),tb?(sl?tt(domTop?'Obere Seite {p}':'Untere Seite {p}',{p:pc(Math.max(r.start.top,r.start.bot),tb)}):tt('Ausgeglichen')):'–',
+    tt('Obere Seite {a} · Untere Seite {b}',{a:pc(r.start.top,tb),b:pc(r.start.bot,tb)})+(r.start.invade+r.start.other?tt(', {i} Invade-Starts, {o} unklar',{i:r.start.invade,o:r.start.other}):''),sl));
+  // Invade
+  const il=lvl(r.invGames/r.n,T_INV);
+  sum.append(tile(tt('Invade bis Minute 5'),pc(r.invGames,r.n),tt('{a} von {b} Spielen · {c} der Zeit im gegnerischen Jungle',{a:r.invGames,b:r.n,c:r.invSeen?pc(r.invFrames,r.invSeen):'–'}),il));
+  // Spielstil
+  const st=r.style;let idx=0,sty=0,tone='';
+  if(st){idx=((st.ka-KA0)/KAS-(st.csMin-CS0)/CSS)/2;sty=lvl(Math.abs(idx),T_STYLE);tone=idx>0?'a':'p';}
+  sum.append(tile(tt('Spielstil bis Minute 20'),st?tt(sty?(idx>0?'Eher aktiv':'Eher passiv'):'Ausgewogen'):'–',st?tt('Ø {c} CS/min · Ø {k} Kills und Assists',{c:f1(st.csMin),k:f1(st.ka)}):tt('Zu wenige lange Spiele'),sty,tone));
+  box.append(sum);
+  // Spielstil-Skala
+  if(st){
+    const g=el('div','style');g.append(el('h3',null,tt('Passiv (Farm) gegen aktiv (Fights)')));
+    const sc=el('div','gauge'),pos=Math.max(-1,Math.min(1,idx/1.5)),fill=el('i','gfill lv'+Math.max(1,sty)+' tone-'+tone),mk=el('i','gmark');
+    fill.style.left=(pos<0?50+pos*50:50)+'%';fill.style.width=Math.abs(pos)*50+'%';mk.style.left=(50+pos*50)+'%';
+    sc.append(el('i','gmid'),fill,mk);
+    const lab=el('div','glab');lab.append(el('span',null,tt('Passiv (Farm)')),el('span',null,tt('Ausgewogen')),el('span',null,tt('Aktiv (Fights)')));
+    g.append(sc,lab);
+    const kv=el('div','pkv');
+    const k1=el('div');k1.append(el('b',null,f1(st.csMin)),el('span',null,tt('CS pro Minute (inkl. Jungle-Camps)')));
+    const k2=el('div');k2.append(el('b',null,f1(st.ka)),el('span',null,tt('Kills + Assists pro 20 Min. ({k} Kills, {a} Assists)',{k:f1(st.k),a:f1(st.a)})));
+    const k3=el('div');k3.append(el('b',null,String(st.n)),el('span',null,tt('ausgewertete Spiele (mind. 12 Min.)')));
+    kv.append(k1,k2,k3);g.append(kv);box.append(g);
+  }
+  // Gank-Lanes
+  box.append(el('h3',null,tt('Wo er Kills und Assists bekommt (bis Minute 14)')));
+  const bars=el('div','ebars'),L=[['top',tt('Top')],['mid',tt('Mid')],['bot',tt('Bot')],['jg',tt('Jungle/Fluss')]];
+  L.forEach(([k,n])=>{const v=r.g[k],sh=r.gankTotal?v/r.gankTotal:0,l=lvl(sh,T_LANE),row=el('div','eb'),m=el('div','meter lv'+l),i=el('i');i.style.width=Math.round(sh*100)+'%';m.append(i);row.append(el('span',null,n),m,el('span',null,pc(v,r.gankTotal)+' ('+v+')'));bars.append(row);});
+  box.append(bars);
+  const lg=el('div','elegend');lg.append(el('span','muted small',tt('Farbe = Stärke der Tendenz:')));[0,1,2,3].forEach(l=>lg.append(chip(l)));box.append(lg);
+  box.append(el('p','muted small',tt('So wird gerechnet: Die Startseite ergibt sich aus der Position bei Minute 2 und 3 (Riot speichert die Position nur einmal pro Minute, es ist also eine Näherung): obere oder untere Hälfte der Karte auf der eigenen Seite des Flusses. Als Invade gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war. Gezählt werden nur Ganks mit Kill oder Assist, Ganks ohne Ergebnis sind in den Daten nicht sichtbar. Der Spielstil vergleicht CS pro Minute und Kills plus Assists bis Minute 20 mit Richtwerten für Jungler (6,6 CS/min, 6 Kills und Assists); die Richtwerte sind Schätzungen. Das Ergebnis ist aus höchstens {m} Jungle-Spielen.',{m:e.max||20})));
+}
+$('f').addEventListener('submit',e=>{e.preventDefault();start($('q').value);});
+const q0=new URLSearchParams(location.search).get('q');
+if(q0)start(q0);
+</script></body></html>

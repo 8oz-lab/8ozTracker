@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
+<body><main><div class="wrap">
+  <h1 data-i18n>Jetzt im Flex-Spiel</h1>
+  <p class="muted" id="meta" data-i18n>Lade Daten …</p>
+  <p class="muted" data-i18n>Klicke auf eine Zeile, um Champions, Teams und Bans der laufenden Partie zu sehen.</p>
+  <section id="cutoffs" class="cutwrap" aria-labelledby="cuth"></section>
+  <div class="bar">
+    <div><span class="count" id="count">–</span> <span class="muted" data-i18n>Spieler im Flex-Spiel</span></div>
+    <input type="search" id="q" placeholder="Spieler suchen" aria-label="Spieler suchen" data-ia="placeholder|aria-label">
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th data-i18n>Rang</th><th data-i18n>Spieler</th><th data-i18n>LP</th><th data-i18n>Spielzeit</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</div></main>
+<script src="/i18n.js"></script><script src="/shell.js"></script>
+<script src="/cutoffs.js"></script>
+<script>
+let d=null;const $=id=>document.getElementById(id);
+async function load(){try{d=await T.status();render();}catch(e){$('meta').textContent=tt('Server nicht erreichbar. Neuer Versuch in 15 Sekunden.');}}
+function render(){
+  if(!d)return;
+  const q=$('q').value.trim().toLowerCase();
+  const list=d.ingame.filter(p=>!q||(p.name||'').toLowerCase().includes(q));
+  $('count').textContent=d.ingame.length;
+  $('meta').textContent=d.total?tt('{c} von {t} Spielern wurden bereits geprüft.',{c:d.checked,t:d.total}):tt('Die Ladder wird geladen. Das dauert beim ersten Start einen Moment.');
+  const rows=$('rows');rows.textContent='';
+  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=4;td.className='empty';
+    td.textContent=tt(q?'Kein Treffer unter den Spielern im Flex-Spiel.':(d.checked?'Gerade spielt niemand aus der Liste Flex.':'Noch keine Ergebnisse. Die ersten Abfragen laufen.'));return;}
+  for(const p of list){
+    const tr=rows.insertRow();
+    tr.insertCell().textContent='#'+p.rank;
+    tr.insertCell().textContent=p.name||tt('wird geladen …');
+    tr.insertCell().textContent=p.lp;
+    tr.insertCell().textContent=T.mins(d,p.start)+' min';
+    tr.cells[0].className='num rank';tr.cells[2].className=tr.cells[3].className='num';
+    T.expandable(rows,tr,p,4);
+  }
+}
+$('q').addEventListener('input',render);
+load();setInterval(load,15000);setInterval(render,30000);
+</script></body></html>

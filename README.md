@@ -58,10 +58,11 @@ Auf `/live` zeigen drei Kacheln die LP des Spielers auf Platz 200, 700 und 1000 
 
 `/jungle` ist die Spielersuche mit Fokus auf die Jungle-Rolle: Du suchst einen Spieler (Name#Tag, bei Top-1000-Spielern auch Name oder `#Platz`) und siehst, wie oft er in seinen letzten 20 Flex-Spielen Jungle gespielt hat (Jungler ab mehr als 70 %), Winrate und KDA im Jungle, den Carry-Score im Jungle und eine Tabelle seiner Jungle-Champions. Die Rolle stammt aus den Spieldaten von Match-V5 (`teamPosition`) und ist exakt.
 
-**Early Game** (zusätzlich, 1 Abfrage pro Jungle-Spiel, höchstens `EARLY_GAMES`; Timelines werden gemerkt): Die Seite lädt es nach der Suche automatisch nach.
-- Startseite: Position bei Minute 2 und 3 nahe Blue- oder Red-Buff des eigenen Teams (Näherung, Riot speichert die Position nur einmal pro Minute).
-- Invade: Als Invade-Spiel gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war; zusätzlich der Anteil der Zeit dort.
-- Gank-Lanes: Kills und Assists des Junglers bis Minute 14, nach Lane des Ortes (Top, Mid, Bot, Jungle/Fluss). Ganks ohne Kill oder Assist sind in den Daten nicht sichtbar.
+**Early Game** (zusätzlich, 1 Abfrage pro Jungle-Spiel, höchstens `EARLY_GAMES`; Timelines werden gemerkt): Die Seite lädt es nach der Suche automatisch nach. Jede Kennzahl hat eine Farbe und ein Label für die Stärke der Tendenz (gering, leicht, deutlich, stark).
+- Startseite: obere oder untere Jungle-Seite, abgeleitet aus der Position bei Minute 2 und 3 (Näherung, Riot speichert die Position nur einmal pro Minute). Starts auf der gegnerischen Seite zählen als Invade-Start. Stärke: ab 55 % / 65 % / 80 % für eine Seite.
+- Invade: Als Invade-Spiel gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war, dazu der Anteil der Zeit dort. Stärke: ab 15 % / 30 % / 50 % der Spiele.
+- Spielstil bis Minute 20 (passiv oder aktiv): CS pro Minute (inkl. Jungle-Camps) gegen Kills plus Assists, hochgerechnet auf 20 Minuten (Spiele ab 12 Minuten). Verglichen wird mit Richtwerten für Jungler (6,6 CS/min, 6 Kills und Assists; Schätzungen, in `jungle.html` als `CS0`, `CSS`, `KA0`, `KAS` änderbar).
+- Gank-Lanes: Kills und Assists des Junglers bis Minute 14, nach Lane des Ortes (Top, Mid, Bot, Jungle/Fluss). Ganks ohne Kill oder Assist sind in den Daten nicht sichtbar. Stärke: ab 22 % / 33 % / 45 %.
 
 ## Carry-Score
 
@@ -77,6 +78,10 @@ Kosten pro Suche (Riot-Abfragen): Riot-ID auflösen (1), Rang (1), laufendes Spi
 - Riot zählt die Limits je Region. Die Suche nutzt vor allem `europe` (Account und Match), der Live-Tracker vor allem `euw1`; der Server zählt deshalb je Region getrennt. Suchanfragen haben Vorrang vor dem Hintergrund-Tracking. Das Verhalten pro Region ist ein Erfahrungswert, kontrolliere es zu Beginn in den Logs (Meldungen „429 Rate-Limit“).
 
 Es läuft immer nur eine Suche gleichzeitig, weitere warten in einer Schlange (`SEARCH_QUEUE_MAX`). Pro Besucher gelten `SEARCH_PER_HOUR` neue Suchen pro Stunde (nach IP). `/api/status` zeigt unter `api` die Suchstatistik (`searches`, `searchCalls`, `matchCacheHits`, `matchesCached`).
+
+## Sprachen
+
+Oben rechts schaltet DE/EN die Sprache um. Gespeichert wird sie nur lokal im Browser (localStorage, keine Cookies); ohne Auswahl gilt die Browsersprache (Deutsch bei deutschen Browsern, sonst Englisch). Alle Texte stehen in `public/i18n.js` (Schlüssel = deutscher Text, Werte = Englisch). Neue Texte im Code mit `tt('Text', {platzhalter})` ausgeben, statische HTML-Elemente mit `data-i18n` markieren und den englischen Text in `i18n.js` ergänzen. Champion-Namen kommen je Sprache aus Data Dragon (`/api/champions?lang=en`), Fehlermeldungen des Servers liefern Vorlage und Werte mit (`et`, `ev`), damit sie in der gewählten Sprache erscheinen.
 
 ## Hosting als Node.js Web-App
 

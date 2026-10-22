@@ -52,11 +52,15 @@ let champs = null;
 async function loadChampions() {
   try {
     const v = (await (await fetch('https://ddragon.leagueoflegends.com/api/versions.json')).json())[0];
-    const c = (await (await fetch(`https://ddragon.leagueoflegends.com/cdn/${v}/data/de_DE/champion.json`)).json()).data;
-    const map = {};
-    for (const k of Object.keys(c)) map[c[k].key] = [c[k].name, c[k].id];
-    champs = { v, c: map };
-    console.log('Champion-Daten geladen:', v, Object.keys(map).length, 'Champions');
+    const out = { v };
+    for (const [k, loc] of [['de', 'de_DE'], ['en', 'en_US']]) {
+      const c = (await (await fetch(`https://ddragon.leagueoflegends.com/cdn/${v}/data/${loc}/champion.json`)).json()).data;
+      const map = {};
+      for (const id of Object.keys(c)) map[c[id].key] = [c[id].name, c[id].id];
+      out[k] = map;
+    }
+    champs = out;
+    console.log('Champion-Daten geladen:', v, Object.keys(out.de).length, 'Champions (de, en)');
   } catch (e) { console.log('Champion-Daten konnten nicht geladen werden:', e.message); }
 }
 
@@ -324,7 +328,10 @@ let working = false;
 const ipHits = new Map();
 
 const normQ = q => String(q || '').trim().replace(/\s+/g, ' ').toLowerCase();
-const userErr = m => Object.assign(new Error(m), { user: true });
+const fillT = (s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m)) : s);
+// Fehlermeldung: deutscher Text (fertig) plus Vorlage und Werte, damit die Seite sie in der gewählten Sprache anzeigen kann
+const errBody = (tpl, v) => ({ error: fillT(tpl, v), et: tpl, ev: v || null });
+const userErr = (tpl, v) => Object.assign(new Error(fillT(tpl, v)), { user: true, tpl, ev: v || null });
 const capMap = (m, max) => { while (m.size > max) m.delete(m.keys().next().value); };
 
 function compactMatch(m) {
@@ -388,7 +395,7 @@ async function runJob(job) {
       if (!a) {
         const r = await riot(`${REGIONAL}/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(job.gn)}/${encodeURIComponent(job.tag)}`, true);
         if (r.status === 404) throw userErr('Spieler nicht gefunden. Prüfe Name und Tag (z. B. Name#EUW).');
-        if (r.status !== 200) throw userErr('Riot antwortet gerade nicht (Fehler ' + r.status + '). Bitte später erneut versuchen.');
+        if (r.status !== 200) throw userErr('Riot antwortet gerade nicht (Fehler {s}). Bitte später erneut versuchen.', { s: r.status });
         a = { puuid: r.data.puuid, name: `${r.data.gameName}#${r.data.tagLine}` };
         accountCache.set(job.key, a); capMap(accountCache, 2000);
       }
@@ -430,7 +437,7 @@ async function runJob(job) {
     job.updated = Date.now();
 
     const ir = await riot(`${REGIONAL}/lol/match/v5/matches/by-puuid/${puuid}/ids?queue=${FLEX_QUEUE_ID}&start=0&count=${SEARCH_N}`, true);
-    if (ir.status !== 200) throw userErr('Die Spielliste konnte nicht geladen werden (Fehler ' + ir.status + '). Bitte später erneut versuchen.');
+    if (ir.status !== 200) throw userErr('Die Spielliste konnte nicht geladen werden (Fehler {s}). Bitte später erneut versuchen.', { s: ir.status });
     job.total = ir.data.length; job.loaded = 0; job.matches = [];
     for (const id of ir.data) {
       let m = matchCache.get(id);
@@ -448,14 +455,14 @@ async function runJob(job) {
   } catch (e) {
     job.state = 'error'; job.updated = Date.now();
     job.error = e.user ? e.message : 'Die Suche ist fehlgeschlagen. Bitte später erneut versuchen.';
+    job.et = e.user ? e.tpl : job.error; job.ev = e.user ? e.ev : null;
     if (!e.user) console.error('Suche fehlgeschlagen:', e);
   }
 }
 
 // --- Early Game eines Junglers (Match-Timeline, 1 Abfrage pro Jungle-Spiel; Ergebnisse werden gemerkt) ---
-// Start: Position bei Minute 2/3 nahe Blue-/Red-Buff des eigenen Teams. Invade: Position bei Minute 2 bis 5 im gegnerischen Jungle.
+// Start: obere oder untere Jungle-Seite (Position bei Minute 2/3). Invade: Position bei Minute 2 bis 5 im gegnerischen Jungle. Spielstil: CS und Kills/Assists bis Minute 20.
 // Ganks: Kills und Assists des Junglers bis Minute 14, nach Lane des Ortes (Ganks ohne Kill oder Assist sind nicht sichtbar).
-const BUFFS = { 100: { blue: [3821, 7901], red: [7765, 4005] }, 200: { blue: [11049, 7079], red: [7105, 10975] } };
 const LANES = {
   top: [[1169, 4287], [1512, 6699], [981, 10441], [2300, 13000], [4318, 13875], [7943, 13411], [10481, 13650]],
   mid: [[3651, 3696], [5048, 4812], [5846, 6396], [7400, 7400], [8955, 8510], [9767, 10113], [11134, 11207]],
@@ -472,23 +479,30 @@ function laneOf(p) {
     for (let i = 0; i < line.length - 1; i++) { const d = segDist(p, line[i], line[i + 1]); if (d < bd) { bd = d; best = k; } }
   return best;
 }
-// gegnerischer Jungle: jenseits des Flusses (x+y), in den Jungle-Dreiecken zwischen den Lanes, nicht in Lane oder Basis
+// Kartenhälften: x+y trennt die Seiten am Fluss, y-x trennt die obere von der unteren Jungle-Seite (Blau unten links, Rot oben rechts)
+const NEXUS = { 100: [1500, 1500], 200: [13400, 13400] };
+function laneDist(p) {
+  let bd = Infinity;
+  for (const line of Object.values(LANES)) for (let i = 0; i < line.length - 1; i++) bd = Math.min(bd, segDist(p, line[i], line[i + 1]));
+  return bd;
+}
+const ownHalf = (p, team) => (team === 100 ? p[0] + p[1] < 14870 - 1000 : p[0] + p[1] > 14870 + 1000);
+// gegnerischer Jungle: jenseits des Flusses, abseits von Lane und Basis
 function inEnemyJungle(p, team) {
-  const [x, y] = p, s = x + y, M = 1000;
-  const jungle = (y > x + 2500 && x > 3000 && y < 12000) || (y < x - 2500 && y > 3000 && x < 12000);
-  return jungle && (team === 100 ? s > 14870 + M : s < 14870 - M);
+  const other = team === 100 ? 200 : 100;
+  return ownHalf(p, other) && Math.abs(p[1] - p[0]) > 1500 && dist(p, NEXUS[other]) > 3800 && laneDist(p) > 700;
 }
 function analyzeTimeline(t, puuid, team) {
   const pi = t && t.metadata && t.metadata.participants ? t.metadata.participants.indexOf(puuid) : -1;
   const frames = t && t.info && t.info.frames; if (pi < 0 || !Array.isArray(frames)) return null;
   const pid = pi + 1;
   const pos = k => { const f = frames[k], pf = f && f.participantFrames && f.participantFrames[pid]; return pf && pf.position ? [pf.position.x, pf.position.y] : null; };
+  // Startseite: obere oder untere Jungle-Seite (Position bei Minute 2/3 auf der eigenen Kartenhälfte); Invade-Start: schon dort auf der gegnerischen Seite
   let sb = 'other';
-  const own = BUFFS[team], enemy = BUFFS[team === 100 ? 200 : 100];
   for (const k of [2, 3]) {
     const p = pos(k); if (!p) continue;
-    const cands = [['blue', dist(p, own.blue)], ['red', dist(p, own.red)], ['invade', Math.min(dist(p, enemy.blue), dist(p, enemy.red))]].sort((a, b) => a[1] - b[1]);
-    if (cands[0][1] <= 2300) { sb = cands[0][0]; break; }
+    if (ownHalf(p, team) && Math.abs(p[1] - p[0]) > 1200) { sb = p[1] > p[0] ? 'top' : 'bot'; break; }
+    if (inEnemyJungle(p, team)) { sb = 'invade'; break; }
   }
   let inv = 0, seen = 0;
   for (let k = 2; k <= 5; k++) { const p = pos(k); if (!p) continue; seen++; if (inEnemyJungle(p, team)) inv++; }
@@ -497,15 +511,29 @@ function analyzeTimeline(t, puuid, team) {
     if (e.type !== 'CHAMPION_KILL' || e.timestamp > 14 * 60000 || !e.position) continue;
     if (e.killerId === pid || (e.assistingParticipantIds || []).includes(pid)) g[laneOf([e.position.x, e.position.y])]++;
   }
-  return { sb, inv, seen, g };
+  // Spielstil bis Minute 20: Farm (CS inkl. Jungle) gegen Kills und Assists; nur bei mindestens 12 gespielten Minuten
+  let wf = null; for (const f of frames) if (f.timestamp <= 20 * 60000) wf = f;
+  const pf = wf && wf.participantFrames && wf.participantFrames[pid], wm = wf ? wf.timestamp / 60000 : 0;
+  let cs = null, k = 0, a = 0;
+  if (pf && wm >= 12) {
+    cs = (pf.minionsKilled || 0) + (pf.jungleMinionsKilled || 0);
+    for (const f of frames) for (const e of f.events || []) {
+      if (e.type !== 'CHAMPION_KILL' || e.timestamp > wf.timestamp) continue;
+      if (e.killerId === pid) k++; else if ((e.assistingParticipantIds || []).includes(pid)) a++;
+    }
+  }
+  return { sb, inv, seen, g, wm, cs, k, a };
 }
 function aggEarly(list) {
-  const r = { n: list.length, start: { blue: 0, red: 0, invade: 0, other: 0 }, invGames: 0, invFrames: 0, invSeen: 0, g: { top: 0, mid: 0, bot: 0, jg: 0 } };
+  const r = { n: list.length, start: { top: 0, bot: 0, invade: 0, other: 0 }, invGames: 0, invFrames: 0, invSeen: 0, g: { top: 0, mid: 0, bot: 0, jg: 0 } };
+  let an = 0, csm = 0, ka = 0, kk = 0, aa = 0;
   for (const x of list) {
     r.start[x.sb]++; r.invFrames += x.inv; r.invSeen += x.seen; if (x.inv >= 2) r.invGames++;
     for (const k of Object.keys(r.g)) r.g[k] += x.g[k];
+    if (x.cs != null) { an++; csm += x.cs / x.wm; ka += (x.k + x.a) * 20 / x.wm; kk += x.k * 20 / x.wm; aa += x.a * 20 / x.wm; }
   }
   r.gankTotal = r.g.top + r.g.mid + r.g.bot + r.g.jg;
+  r.style = an ? { n: an, csMin: csm / an, ka: ka / an, k: kk / an, a: aa / an } : null;
   return r;
 }
 const tlCache = new Map();    // "matchId|puuid" -> Auswertung der Timeline
@@ -588,21 +616,21 @@ app.set('trust proxy', 1);
 app.get('/api/player', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const q = String(req.query.q || '').trim().slice(0, 60), key = normQ(q);
-  const snap = j => ({ state: j.state, error: j.error || null, pos: j.state === 'queued' ? queue.indexOf(j) + 1 : 0, total: j.total || 0, loaded: j.loaded || 0,
+  const snap = j => ({ state: j.state, error: j.error || null, et: j.et || null, ev: j.ev || null, pos: j.state === 'queued' ? queue.indexOf(j) + 1 : 0, total: j.total || 0, loaded: j.loaded || 0,
                        prof: j.prof || null, matches: j.matches || [], cached: !!j.cached, queries: SEARCH_N, now: Date.now() });
-  if (key.length < 2) return res.status(400).json({ error: 'Bitte gib einen Namen ein, am besten mit Tag (Name#EUW).' });
+  if (key.length < 2) return res.status(400).json(errBody('Bitte gib einen Namen ein, am besten mit Tag (Name#EUW).'));
   const old = jobs.get(key);
   if (old) return res.json(snap(old));
 
   const found = findTracked(key);
-  if (/^#\d+$/.test(key) && !found.length) return res.status(404).json({ error: 'Kein Spieler auf diesem Ladder-Platz bekannt.' });
+  if (/^#\d+$/.test(key) && !found.length) return res.status(404).json(errBody('Kein Spieler auf diesem Ladder-Platz bekannt.'));
   if (found.length > 1) return res.json({ state: 'choose', options: found.slice(0, 10).map(p => ({ n: p.name, r: p.rank })) });
   let job = { key, state: 'queued', tracked: found[0] || null, updated: Date.now() };
   if (!job.tracked) {
     const i = q.lastIndexOf('#');
-    if (i < 1) return res.status(400).json({ error: 'Spieler nicht in den Top 1000 gefunden. Für alle anderen gib den Riot-ID mit Tag ein, z. B. Name#EUW.' });
+    if (i < 1) return res.status(400).json(errBody('Spieler nicht in den Top 1000 gefunden. Für alle anderen gib den Riot-ID mit Tag ein, z. B. Name#EUW.'));
     job.gn = q.slice(0, i).trim(); job.tag = q.slice(i + 1).trim();
-    if (!job.gn || job.gn.length > 16 || !/^[\p{L}\p{N}]{2,5}$/u.test(job.tag)) return res.status(400).json({ error: 'Ungültige Riot-ID. Format: Name#Tag (z. B. Name#EUW).' });
+    if (!job.gn || job.gn.length > 16 || !/^[\p{L}\p{N}]{2,5}$/u.test(job.tag)) return res.status(400).json(errBody('Ungültige Riot-ID. Format: Name#Tag (z. B. Name#EUW).'));
   }
   // Frisches Ergebnis oder bekannter Spieler im Cache kostet nichts und zählt nicht gegen das Limit
   const free = job.tracked && resultCache.has(job.tracked.puuid);
@@ -610,9 +638,9 @@ app.get('/api/player', (req, res) => {
     const t = Date.now(), hits = (ipHits.get(req.ip) || []).filter(x => t - x < 3600e3);
     if (hits.length >= SEARCH_PER_HOUR) {
       const mins = Math.max(1, Math.ceil((3600e3 - (t - hits[0])) / 60e3));
-      return res.status(429).json({ error: `Du hast das Limit von ${SEARCH_PER_HOUR} Suchen pro Stunde erreicht. Bitte warte etwa ${mins} Minuten.` });
+      return res.status(429).json(errBody('Du hast das Limit von {n} Suchen pro Stunde erreicht. Bitte warte etwa {m} Minuten.', { n: SEARCH_PER_HOUR, m: mins }));
     }
-    if (queue.length >= SEARCH_QUEUE_MAX) return res.status(503).json({ error: 'Gerade sind viele Suchen in der Warteschlange. Bitte in einer Minute erneut versuchen.' });
+    if (queue.length >= SEARCH_QUEUE_MAX) return res.status(503).json(errBody('Gerade sind viele Suchen in der Warteschlange. Bitte in einer Minute erneut versuchen.'));
     hits.push(t); ipHits.set(req.ip, hits);
   }
   jobs.set(key, job); queue.push(job); worker();
@@ -621,18 +649,19 @@ app.get('/api/player', (req, res) => {
 app.get('/api/early', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const job = jobs.get(normQ(String(req.query.q || '').trim().slice(0, 60)));
-  if (!job || job.state !== 'done' || !job.puuid || !resultCache.has(job.puuid)) return res.status(409).json({ error: 'Erst die Spielersuche abschließen.' });
+  if (!job || job.state !== 'done' || !job.puuid || !resultCache.has(job.puuid)) return res.status(409).json(errBody('Erst die Spielersuche abschließen.'));
   let ej = earlyJobs.get(job.puuid);
   if (!ej) {
-    if (queue.length >= SEARCH_QUEUE_MAX) return res.status(503).json({ error: 'Gerade sind viele Suchen in der Warteschlange. Bitte in einer Minute erneut versuchen.' });
+    if (queue.length >= SEARCH_QUEUE_MAX) return res.status(503).json(errBody('Gerade sind viele Suchen in der Warteschlange. Bitte in einer Minute erneut versuchen.'));
     ej = { kind: 'early', puuid: job.puuid, state: 'queued', total: 0, loaded: 0, result: null, updated: Date.now() };
     earlyJobs.set(job.puuid, ej); queue.push(ej); worker();
   }
-  res.json({ state: ej.state, pos: ej.state === 'queued' ? queue.indexOf(ej) + 1 : 0, total: ej.total, loaded: ej.loaded, result: ej.result, error: ej.error || null, max: EARLY_MAX });
+  res.json({ state: ej.state, pos: ej.state === 'queued' ? queue.indexOf(ej) + 1 : 0, total: ej.total, loaded: ej.loaded, result: ej.result, error: ej.error || null, et: ej.error || null, max: EARLY_MAX });
 });
 app.get('/api/champions', (req, res) => {
   res.set('Cache-Control', 'public, max-age=3600');
-  res.json(champs || { v: null, c: {} });
+  const l = req.query && req.query.lang === 'en' ? 'en' : 'de';
+  res.json(champs ? { v: champs.v, c: champs[l] } : { v: null, c: {} });
 });
 app.get('/api/game/:id', (req, res) => {
   const p = [...players.values()].find(x => String(x.pid) === req.params.id);
