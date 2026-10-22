@@ -1,10 +1,11 @@
 // Gemeinsamer Rahmen (Kopfzeile mit Logo, Fußzeile) und Datenhelfer
 (function () {
-  const pages = [['/', 'Start'], ['/live', 'Live'], ['/recent', 'Zuletzt'], ['/leaderboard', 'Leaderboard'], ['/about', 'Über']];
+  const pages = [['/', 'Start'], ['/live', 'Live'], ['/recent', 'Zuletzt'], ['/leaderboard', 'Leaderboard'], ['/jungle', 'Jungle Tendencies'], ['/about', 'Über']];
   const path = location.pathname.replace(/\.html$/, '').replace(/index$/, '') || '/';
   const nav = pages.map(([h, t]) => `<a href="${h}"${h === path ? ' aria-current="page"' : ''}>${t}</a>`).join('');
   document.body.insertAdjacentHTML('afterbegin',
-    `<header><div class="wrap"><a class="logo" href="/"><img src="/img/logo.webp" alt="8oz Tracker" width="223" height="52"></a><nav>${nav}</nav></div></header>`);
+    `<header><div class="wrap"><a class="logo" href="/"><img src="/img/logo.webp" alt="8oz Tracker" width="223" height="52"></a><nav>${nav}</nav><form class="hs" action="/player" method="get" role="search"><input type="search" name="q" placeholder="Spieler suchen: Name#Tag" aria-label="Spieler suchen" maxlength="60" autocomplete="off"></form></div></header>`);
+  try { const a = document.querySelector('nav a[aria-current]'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) { /* egal */ }
   document.body.insertAdjacentHTML('beforeend',
     `<footer><div class="wrap"><p>8oz Tracker isn’t endorsed by Riot Games and doesn’t reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p></div></footer>`);
 
@@ -28,12 +29,24 @@
     return i;
   }
   T.champ = champ; T.icon = icon;
+  T.item = function (id, size) {
+    if (!id || !T.champs.v) return el('span', 'it0');
+    const i = el('img', 'ci it'); i.src = `https://ddragon.leagueoflegends.com/cdn/${T.champs.v}/img/item/${id}.png`; i.alt = ''; i.width = i.height = size; i.loading = 'lazy';
+    return i;
+  };
+  // Link zur Spielerseite (Name#Tag, sonst Ladder-Platz)
+  T.plink = function (name, rank, cls) {
+    const a = el('a', cls || 'plink', name || ('Spieler #' + rank)); a.href = '/player?q=' + encodeURIComponent(name || ('#' + rank));
+    return a;
+  };
   function team(g, t, label) {
     const box = el('div', 'team'); box.append(el('h4', null, label));
     g.players.filter(p => p.t === t).forEach(p => {
-      const row = el('div', 'pl' + (p.me ? ' me' : '')), txt = el('div');
+      const row = el('div', 'pl' + (p.me ? ' me' : '') + (p.k ? ' top' : '')), txt = el('div');
       txt.append(el('div', 'champ', champ(p.c).name), el('div', 'muted small', p.n || ''));
-      row.append(icon(p.c, 32), txt); box.append(row);
+      row.append(icon(p.c, 32), txt);
+      if (p.k) { const b = el('span', 'rk', '#' + p.k); b.title = 'Platz ' + p.k + ' der Flex-Ladder (Top 1000)'; row.append(b); }
+      box.append(row);
     });
     return box;
   }

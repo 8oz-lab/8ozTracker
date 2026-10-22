@@ -5,6 +5,7 @@
   <h1>Jetzt im Flex-Spiel</h1>
   <p class="muted" id="meta">Lade Daten …</p>
   <p class="muted">Klicke auf eine Zeile, um Champions, Teams und Bans der laufenden Partie zu sehen.</p>
+  <section id="cutoffs" class="cutwrap" aria-labelledby="cuth"></section>
   <div class="bar">
     <div><span class="count" id="count">–</span> <span class="muted">Spieler im Flex-Spiel</span></div>
     <input type="search" id="q" placeholder="Spieler suchen" aria-label="Spieler suchen">
@@ -15,6 +16,7 @@
   </table></div>
 </div></main>
 <script src="/shell.js"></script>
+<script src="/cutoffs.js"></script>
 <script>
 let d=null;const $=id=>document.getElementById(id);
 async function load(){try{d=await T.status();render();}catch(e){$('meta').textContent='Server nicht erreichbar. Neuer Versuch in 15 Sekunden.';}}

@@ -34,7 +34,7 @@ function render(){
     cell(tr,'#'+p.r,'num rank');
     const d=p.d>0?cell(tr,'▲'+p.d,'num up'):p.d<0?cell(tr,'▼'+(-p.d),'num down'):cell(tr,'–','num muted');
     d.title=p.d>0?'Zuletzt um '+p.d+' Plätze gestiegen':p.d<0?'Zuletzt um '+(-p.d)+' Plätze gefallen':'Keine Änderung erfasst';
-    const n=cell(tr,p.n||('Spieler #'+p.r));if(!p.n)n.className='muted';
+    const n=tr.insertCell();n.append(T.plink(p.n,p.r));if(!p.n)n.className='muted';
     cell(tr,TIER[p.t]||'','hide-s');cell(tr,p.lp,'num');
     cell(tr,p.w+' / '+p.l,'num hide-s');cell(tr,g?Math.round(100*p.w/g)+' %':'–','num');
     const s=tr.insertCell();if(p.i){const dot=document.createElement('span');dot.className='live';s.append(dot,' im Spiel');s.className='ing';}else{s.textContent='–';s.className='muted';}

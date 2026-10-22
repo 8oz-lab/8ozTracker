@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spielersuche: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
+<body><main><div class="wrap">
+  <h1>Spielersuche</h1>
+  <p class="muted">Suche einen beliebigen Spieler mit seiner Riot-ID (Name#Tag). Gezeigt werden Rang und die letzten 20 Flex-Spiele auf EUW. Für Spieler aus den Top 1000 reicht auch der Name oder der Ladder-Platz (z. B. <code>#25</code>).</p>
+  <form class="sbox" id="f"><input type="search" id="q" placeholder="Name#Tag" maxlength="60" autocomplete="off" aria-label="Riot-ID"><button id="go" type="submit">Suchen</button></form>
+  <div class="pstate" id="st" aria-live="polite"></div>
+  <div id="out"></div>
+</div></main>
+<script src="/shell.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+const TIER={challenger:'Challenger',grandmaster:'Grandmaster',master:'Master',diamond:'Diamond',emerald:'Emerald',platinum:'Platinum',gold:'Gold',silver:'Silver',bronze:'Bronze',iron:'Iron'};
+const APEX=['challenger','grandmaster','master'];
+const ROLE={TOP:'Top',JUNGLE:'Jungle',MIDDLE:'Mid',BOTTOM:'Bot',UTILITY:'Support'};
+let timer=null, run=0, last=null, open=new Set();
+
+function ago(t){const m=Math.floor((Date.now()-t)/60000);if(m<1)return 'gerade eben';if(m<60)return 'vor '+m+' min';const h=Math.floor(m/60);if(h<24)return 'vor '+h+' Std.';const d=Math.floor(h/24);return 'vor '+d+(d===1?' Tag':' Tagen');}
+function dur(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function kdaRatio(k,d,a){return d?((k+a)/d):(k+a);}
+const f1=n=>(Math.round(n*10)/10).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
+
+function start(q){
+  q=q.trim();if(!q)return;
+  clearTimeout(timer);const my=++run;last=null;open=new Set();
+  $('q').value=q;$('out').textContent='';
+  try{history.replaceState(null,'','/player?q='+encodeURIComponent(q));}catch(e){}
+  poll(q,my);
+}
+async function poll(q,my){
+  if(my!==run)return;
+  $('go').disabled=true;
+  let r,d;
+  try{r=await fetch('/api/player?q='+encodeURIComponent(q));d=await r.json();}
+  catch(e){if(my!==run)return;status('Server nicht erreichbar. Bitte später erneut versuchen.',true);$('go').disabled=false;return;}
+  if(my!==run)return;
+  if(!r.ok){status(d.error||'Die Suche ist fehlgeschlagen.',true);$('go').disabled=false;return;}
+  if(d.state==='choose'){choose(d);$('go').disabled=false;return;}
+  await T.ready;
+  last=d;render(d);
+  if(d.state==='queued'||d.state==='running'){timer=setTimeout(()=>poll(q,my),d.state==='queued'?2000:1200);}
+  else $('go').disabled=false;
+}
+function status(msg,err,frac){
+  const s=$('st');s.textContent='';s.className='pstate'+(err?' err':'');
+  if(!msg)return;
+  s.append(msg);
+  if(frac!=null){const b=el('div','pbar'),i=el('i');i.style.width=Math.round(frac*100)+'%';b.append(i);s.append(b);}
+}
+function choose(d){
+  status('Mehrere Spieler gefunden. Wähle einen aus:');
+  const box=el('div','opts');
+  d.options.forEach(o=>{const a=el('a');a.href='/player?q='+encodeURIComponent(o.n);a.append(el('b',null,'#'+o.r),o.n);a.addEventListener('click',e=>{e.preventDefault();start(o.n);});box.append(a);});
+  $('out').textContent='';$('out').append(box);
+}
+
+function render(d){
+  if(d.state==='error'){status(d.error,true);$('out').textContent='';return;}
+  if(d.state==='queued')status(d.pos>1?`In der Warteschlange: Platz ${d.pos}. Es läuft immer nur eine Suche gleichzeitig.`:'Die Suche startet gleich …');
+  else if(d.state==='running'){
+    if(d.total)status(`Lade Spiele … ${d.loaded} von ${d.total}`,false,d.loaded/d.total);
+    else status('Suche läuft … Spieler und Rang werden geladen.');
+  } else {
+    status(d.matches.length?'':'Für diesen Spieler wurden keine Flex-Spiele gefunden.');
+  }
+  const out=$('out');out.textContent='';
+  if(d.prof)out.append(profile(d.prof,d.matches));
+  if(d.matches.length){out.append(summary(d.matches));out.append(list(d.matches));}
+  if(d.state==='done'&&d.cached)out.append(el('p','muted small','Dieses Ergebnis stammt aus dem Zwischenspeicher und wird nach etwa 15 Minuten neu geladen.'));
+}
+
+function profile(p,ms){
+  const box=el('section','prof'),left=el('div'),h=el('h2',null,p.name||'Spieler');left.append(h);
+  const b=el('div','badges');
+  if(p.tier){
+    const apex=APEX.includes(p.tier);
+    b.append(el('span','badge gold',(TIER[p.tier]||p.tier)+(apex||!p.div?'':' '+p.div)+' · '+p.lp+' LP'));
+    if(p.rank)b.append(el('span','badge','Platz #'+p.rank+' der Flex-Ladder'));
+  } else if(p.unranked)b.append(el('span','badge','Kein Flex-Rang'));
+  if(p.live){const l=el('span','badge lv');l.append(el('span','live'),' im Flex-Spiel'+(p.live.c?' mit '+T.champ(p.live.c).name:''));b.append(l);}
+  else if(p.lastEnd)b.append(el('span','badge','Letztes Spiel beendet '+ago(p.lastEnd)));
+  left.append(b);box.append(left);
+  const kv=el('div','pkv');
+  if(p.tier){const g=p.w+p.l;
+    const a=el('div');a.append(el('b',null,p.w+' / '+p.l),el('span',null,'Siege / Niederlagen'));kv.append(a);
+    const c=el('div');c.append(el('b',null,g?Math.round(100*p.w/g)+' %':'–'),el('span',null,'Winrate (Saison)'));kv.append(c);}
+  if(p.jg){const j=el('div');j.append(el('b',null,Math.round(100*p.jg.j/p.jg.g)+' %'),el('span',null,'Jungle ('+p.jg.j+' von '+p.jg.g+' beobachteten Spielen)'));kv.append(j);}
+  box.append(kv);
+  return box;
+}
+
+function summary(ms){
+  const g=ms.length,real=ms.filter(m=>!m.e),w=real.filter(m=>m.w).length;
+  let k=0,de=0,a=0;real.forEach(m=>{k+=m.k;de+=m.de;a+=m.a;});
+  const cnt={},role={};
+  real.forEach(m=>{const c=cnt[m.c]||(cnt[m.c]={n:0,w:0});c.n++;if(m.w)c.w++;if(m.pos)role[m.pos]=(role[m.pos]||0)+1;});
+  const box=el('section','sum');
+  const t1=el('div','tile');t1.append(el('b',null,w+' / '+(real.length-w)),el('span',null,'Siege / Niederlagen ('+(real.length?Math.round(100*w/real.length):0)+' %)'));
+  const t2=el('div','tile');t2.append(el('b',null,real.length?f1(kdaRatio(k,de,a))+' KDA':'–'),el('span',null,real.length?`Ø ${f1(k/real.length)} / ${f1(de/real.length)} / ${f1(a/real.length)}`:''));
+  const t3=el('div','tile'),rs=Object.entries(role).sort((x,y)=>y[1]-x[1]);
+  t3.append(el('b',null,rs.length?(ROLE[rs[0][0]]||rs[0][0]):'–'),el('span',null,rs.length?rs.slice(0,3).map(([r,n])=>`${ROLE[r]||r} ${n}`).join(' · '):'Rolle unbekannt'));
+  const t4=el('div','tile'),cs=Object.entries(cnt).sort((x,y)=>y[1].n-x[1].n).slice(0,3);
+  t4.append(el('span',null,'Meistgespielt'));const row=el('div','chs');
+  cs.forEach(([c,v])=>{const ch=T.champ(c),s=el('span','chm');s.title=`${ch.name}: ${v.n} Spiele, ${v.w} Siege`;s.append(T.icon(c,26),el('span','small',v.n+'×'));row.append(s);});
+  t4.append(row);
+  box.append(t1,t2,t3,t4);
+  return box;
+}
+
+function list(ms){
+  const box=el('section','mlist');box.setAttribute('aria-label','Letzte Spiele');
+  ms.forEach(m=>box.append(match(m)));
+  return box;
+}
+function match(m){
+  const cls=m.e?'rm':m.w?'win':'loss',wrap=el('div','m '+cls);
+  const head=el('button','mh');head.type='button';
+  const res=el('div','res');res.append(el('div',null,m.e?'Remake':m.w?'Sieg':'Niederlage'),el('div','muted small',dur(m.d)));
+  const c0=el('div','c0');c0.append(T.icon(m.c,44));
+  const kd=el('div','kda');
+  kd.append(el('div','cn small',T.champ(m.c).name+(m.pos&&ROLE[m.pos]?' · '+ROLE[m.pos]:'')));
+  const line=el('div');line.append(el('b',null,`${m.k} / ${m.de} / ${m.a}`),el('span','sub',' '+f1(kdaRatio(m.k,m.de,m.a))+' KDA'));kd.append(line);
+  const mins=Math.max(1,m.d/60);kd.append(el('div','sub small','CS '+m.cs+' ('+f1(m.cs/mins)+'/min)'));
+  const its=el('div','its');m.it.slice(0,6).forEach(i=>its.append(T.item(i,26)));
+  const tm=el('div','tm',ago(m.t));
+  const chv=el('span','chv muted',open.has(m.id)?'▾':'▸');
+  head.append(res,c0,kd,its,tm,chv);wrap.append(head);
+  head.setAttribute('aria-expanded',open.has(m.id));
+  const show=()=>{
+    const d=el('div','mdet'),maxd=Math.max(1,...m.ps.map(x=>x.dmg));
+    const teams=el('div','teams');
+    [[100,'Blaues Team'],[200,'Rotes Team']].forEach(([t,label])=>{
+      const tb=el('div','team');tb.append(el('h4',null,label));
+      m.ps.filter(x=>x.t===t).forEach(x=>{
+        const r=el('div','pr'+(x.me?' me':'')+(x.r?' top':''));
+        const nm=el('div','nm'),n=x.n.split('#')[0]||'?';
+        if(x.me||!x.n.includes('#'))nm.append(el('span',null,n));else{const a=T.plink(x.n);a.textContent=n;nm.append(a);}
+        if(x.r){const rk=el('span','rk','#'+x.r);rk.style.marginLeft='8px';rk.title='Platz '+x.r+' der Flex-Ladder (Top 1000)';nm.append(rk);}
+        nm.append(el('small',null,T.champ(x.c).name+(x.pos&&ROLE[x.pos]?' · '+ROLE[x.pos]:'')));
+        const dm=el('div','dmg'),i=el('i');i.style.width=Math.round(100*x.dmg/maxd)+'%';i.title=x.dmg.toLocaleString('de-DE')+' Schaden an Champions';dm.append(i);nm.append(dm);
+        const st=el('div','st');st.append(`${x.k}/${x.d}/${x.a}`);
+        r.append(T.icon(x.c,32),nm,st);tb.append(r);
+      });
+      teams.append(tb);
+    });
+    d.append(teams);return d;
+  };
+  let det=null;
+  const set=on=>{
+    chv.textContent=on?'▾':'▸';head.setAttribute('aria-expanded',on);
+    if(on){open.add(m.id);if(!det){det=show();wrap.append(det);}}
+    else{open.delete(m.id);if(det){det.remove();det=null;}}
+  };
+  head.addEventListener('click',()=>set(!open.has(m.id)));
+  if(open.has(m.id))set(true);
+  return wrap;
+}
+
+$('f').addEventListener('submit',e=>{e.preventDefault();start($('q').value);});
+const q0=new URLSearchParams(location.search).get('q');
+if(q0)start(q0);
+</script></body></html>

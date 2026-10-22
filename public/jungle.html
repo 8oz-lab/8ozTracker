@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jungle Tendencies: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
+<body><main><div class="wrap">
+  <h1>Jungle Tendencies</h1>
+  <p class="muted">Spieler aus den Top 1000 der EUW-Flex-Ladder, die in mehr als 70 % ihrer beobachteten Spiele Jungle gespielt haben, mit ihren meistgespielten Jungle-Champions. Sortiert nach Ladder-Rang, angezeigt werden höchstens 30.</p>
+  <p class="muted small">So wird gezählt: Als Jungle gilt, wer in einem Spiel Smite dabeihatte. Gezählt werden nur Flex-Spiele, die der Tracker live gesehen hat, ab dem unten genannten Zeitpunkt.</p>
+  <p class="muted" id="meta">Lade Daten …</p>
+  <div class="bar">
+    <div><span class="count" id="count">–</span> <span class="muted">Jungle-Spieler</span></div>
+    <div class="seg" role="group" aria-label="Mindestanzahl beobachteter Spiele" id="seg"></div>
+  </div>
+  <div class="scroll"><table class="jgtable">
+    <thead><tr><th>Rang</th><th>Spieler</th><th>Jungle-Anteil</th><th>Meistgespielte Champions</th><th class="hide-s">LP</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</div></main>
+<script src="/shell.js"></script>
+<script>
+const $=id=>document.getElementById(id), MINS=[3,5,10];
+let min=null, data=null;
+try{const s=+localStorage.getItem('jgMin');if(MINS.includes(s))min=s;}catch(e){}
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+const segBtns=MINS.map(m=>{const b=el('button',null,'Mind. '+m);b.type='button';b.title='Mindestens '+m+' beobachtete Spiele';b.addEventListener('click',()=>{min=m;try{localStorage.setItem('jgMin',m);}catch(e){}load();});$('seg').append(b);return b;});
+async function load(){
+  try{
+    await T.ready;
+    const d=await (await fetch('/api/jungle'+(min?'?min='+min:''))).json();
+    data=d;if(!min)min=d.meta.minGames;render();
+  }catch(e){$('meta').textContent='Server nicht erreichbar. Neuer Versuch in 60 Sekunden.';}
+}
+function render(){
+  const m=data.meta,list=data.list;
+  segBtns.forEach((b,i)=>b.setAttribute('aria-pressed',MINS[i]===m.minGames));
+  $('count').textContent=list.length;
+  const since=new Date(m.since).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  let txt=`Datenbasis: ${m.enough} von ${m.total} Spielern haben mindestens ${m.minGames} beobachtete Spiele (Zählung seit ${since} Uhr). ${m.qualified} davon spielen mehr als ${Math.round(m.share*100)} % Jungle.`;
+  if(m.qualified>list.length)txt+=` Gezeigt werden die ${list.length} mit dem besten Rang.`;
+  $('meta').textContent=txt;
+  const rows=$('rows');rows.textContent='';
+  if(!list.length){
+    const td=rows.insertRow().insertCell();td.colSpan=5;td.className='empty';
+    td.textContent=(m.spellOk===0&&m.noSpell>0)?'Die Riot-API liefert in der Spielabfrage keine Beschwörerzauber, daher lässt sich die Rolle nicht erkennen.'
+      :'Noch keine Spieler mit genug beobachteten Spielen. Die Statistik füllt sich, während der Tracker Spiele sieht. Das kann einige Tage dauern; mit weniger Mindestspielen oben erscheinen früher erste Treffer.';
+    return;
+  }
+  for(const p of list){
+    const tr=rows.insertRow(),pct=Math.round(100*p.j/p.g);
+    tr.insertCell().textContent='#'+p.r;tr.cells[0].className='num rank';
+    const nm=tr.insertCell();nm.append(T.plink(p.n,p.r));nm.className='pn';
+    const sh=tr.insertCell();sh.className='sh';const box=el('div','share'),top=el('div','sharetop');
+    top.append(el('strong',null,pct+' %'),el('span','muted small',p.j+' von '+p.g+' Spielen'));
+    const meter=el('div','meter'),fill=el('i');fill.style.width=pct+'%';meter.append(fill);box.append(top,meter);sh.append(box);
+    const cc=tr.insertCell();cc.className='chs';
+    p.ch.forEach(([c,k])=>{const ch=T.champ(c),w=el('span','chm');w.title=`${ch.name}: ${k} von ${p.j} Jungle-Spielen`;w.append(T.icon(c,26),ch.name,el('span','muted small','×'+k));cc.append(w);});
+    const lp=tr.insertCell();lp.textContent=p.lp;lp.className='num hide-s';
+  }
+}
+load();setInterval(load,60000);
+</script></body></html>
