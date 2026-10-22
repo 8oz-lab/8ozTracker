@@ -3,58 +3,142 @@
 <title>Jungle Tendencies: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
 <body><main><div class="wrap">
   <h1>Jungle Tendencies</h1>
-  <p class="muted">Spieler aus den Top 1000 der EUW-Flex-Ladder, die in mehr als 70 % ihrer beobachteten Spiele Jungle gespielt haben, mit ihren meistgespielten Jungle-Champions. Sortiert nach Ladder-Rang, angezeigt werden höchstens 30.</p>
-  <p class="muted small">So wird gezählt: Als Jungle gilt, wer in einem Spiel Smite dabeihatte. Gezählt werden nur Flex-Spiele, die der Tracker live gesehen hat, ab dem unten genannten Zeitpunkt.</p>
-  <p class="muted" id="meta">Lade Daten …</p>
-  <div class="bar">
-    <div><span class="count" id="count">–</span> <span class="muted">Jungle-Spieler</span></div>
-    <div class="seg" role="group" aria-label="Mindestanzahl beobachteter Spiele" id="seg"></div>
-  </div>
-  <div class="scroll"><table class="jgtable">
-    <thead><tr><th>Rang</th><th>Spieler</th><th>Jungle-Anteil</th><th>Meistgespielte Champions</th><th class="hide-s">LP</th></tr></thead>
-    <tbody id="rows"></tbody>
-  </table></div>
+  <p class="muted">Suche einen Spieler und sieh, wie oft er in seinen letzten 20 Flex-Spielen Jungle gespielt hat und mit welchen Champions. Für Spieler aus den Top 1000 reicht auch der Name oder der Ladder-Platz (z. B. <code>#25</code>), alle anderen suchst du mit Name#Tag.</p>
+  <form class="sbox" id="f"><input type="search" id="q" placeholder="Name#Tag" maxlength="60" autocomplete="off" aria-label="Riot-ID"><button id="go" type="submit">Suchen</button></form>
+  <div class="pstate" id="st" aria-live="polite"></div>
+  <div id="out"></div>
 </div></main>
 <script src="/shell.js"></script>
 <script>
-const $=id=>document.getElementById(id), MINS=[3,5,10];
-let min=null, data=null;
-try{const s=+localStorage.getItem('jgMin');if(MINS.includes(s))min=s;}catch(e){}
+const $=id=>document.getElementById(id);
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
-const segBtns=MINS.map(m=>{const b=el('button',null,'Mind. '+m);b.type='button';b.title='Mindestens '+m+' beobachtete Spiele';b.addEventListener('click',()=>{min=m;try{localStorage.setItem('jgMin',m);}catch(e){}load();});$('seg').append(b);return b;});
-async function load(){
-  try{
-    await T.ready;
-    const d=await (await fetch('/api/jungle'+(min?'?min='+min:''))).json();
-    data=d;if(!min)min=d.meta.minGames;render();
-  }catch(e){$('meta').textContent='Server nicht erreichbar. Neuer Versuch in 60 Sekunden.';}
+const TIER={challenger:'Challenger',grandmaster:'Grandmaster',master:'Master',diamond:'Diamond',emerald:'Emerald',platinum:'Platinum',gold:'Gold',silver:'Silver',bronze:'Bronze',iron:'Iron'};
+const APEX=['challenger','grandmaster','master'], SHARE=0.7;
+let timer=null, run=0, etimer=null, early=null, lastQ='';
+let lastD=null;
+const f1=n=>(Math.round(n*10)/10).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
+const kdaR=(k,d,a)=>d?((k+a)/d):(k+a);
+
+function start(q){
+  q=q.trim();if(!q)return;
+  clearTimeout(timer);clearTimeout(etimer);early=null;lastQ=q;const my=++run;$('q').value=q;$('out').textContent='';
+  try{history.replaceState(null,'','/jungle?q='+encodeURIComponent(q));}catch(e){}
+  poll(q,my);
 }
-function render(){
-  const m=data.meta,list=data.list;
-  segBtns.forEach((b,i)=>b.setAttribute('aria-pressed',MINS[i]===m.minGames));
-  $('count').textContent=list.length;
-  const since=new Date(m.since).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-  let txt=`Datenbasis: ${m.enough} von ${m.total} Spielern haben mindestens ${m.minGames} beobachtete Spiele (Zählung seit ${since} Uhr). ${m.qualified} davon spielen mehr als ${Math.round(m.share*100)} % Jungle.`;
-  if(m.qualified>list.length)txt+=` Gezeigt werden die ${list.length} mit dem besten Rang.`;
-  $('meta').textContent=txt;
-  const rows=$('rows');rows.textContent='';
-  if(!list.length){
-    const td=rows.insertRow().insertCell();td.colSpan=5;td.className='empty';
-    td.textContent=(m.spellOk===0&&m.noSpell>0)?'Die Riot-API liefert in der Spielabfrage keine Beschwörerzauber, daher lässt sich die Rolle nicht erkennen.'
-      :'Noch keine Spieler mit genug beobachteten Spielen. Die Statistik füllt sich, während der Tracker Spiele sieht. Das kann einige Tage dauern; mit weniger Mindestspielen oben erscheinen früher erste Treffer.';
-    return;
-  }
-  for(const p of list){
-    const tr=rows.insertRow(),pct=Math.round(100*p.j/p.g);
-    tr.insertCell().textContent='#'+p.r;tr.cells[0].className='num rank';
-    const nm=tr.insertCell();nm.append(T.plink(p.n,p.r));nm.className='pn';
-    const sh=tr.insertCell();sh.className='sh';const box=el('div','share'),top=el('div','sharetop');
-    top.append(el('strong',null,pct+' %'),el('span','muted small',p.j+' von '+p.g+' Spielen'));
-    const meter=el('div','meter'),fill=el('i');fill.style.width=pct+'%';meter.append(fill);box.append(top,meter);sh.append(box);
-    const cc=tr.insertCell();cc.className='chs';
-    p.ch.forEach(([c,k])=>{const ch=T.champ(c),w=el('span','chm');w.title=`${ch.name}: ${k} von ${p.j} Jungle-Spielen`;w.append(T.icon(c,26),ch.name,el('span','muted small','×'+k));cc.append(w);});
-    const lp=tr.insertCell();lp.textContent=p.lp;lp.className='num hide-s';
-  }
+async function poll(q,my){
+  if(my!==run)return;
+  $('go').disabled=true;
+  let r,d;
+  try{r=await fetch('/api/player?q='+encodeURIComponent(q));d=await r.json();}
+  catch(e){if(my!==run)return;status('Server nicht erreichbar. Bitte später erneut versuchen.',true);$('go').disabled=false;return;}
+  if(my!==run)return;
+  if(!r.ok){status(d.error||'Die Suche ist fehlgeschlagen.',true);$('go').disabled=false;return;}
+  if(d.state==='choose'){choose(d);$('go').disabled=false;return;}
+  await T.ready;
+  render(d);
+  if(d.state==='queued'||d.state==='running')timer=setTimeout(()=>poll(q,my),d.state==='queued'?2000:1200);
+  else{$('go').disabled=false;if(d.state==='done'&&d.matches.some(m=>m.pos==='JUNGLE'&&!m.e))pollEarly(q,my);}
 }
-load();setInterval(load,60000);
+function status(msg,err,frac){
+  const s=$('st');s.textContent='';s.className='pstate'+(err?' err':'');
+  if(!msg)return;s.append(msg);
+  if(frac!=null){const b=el('div','pbar'),i=el('i');i.style.width=Math.round(frac*100)+'%';b.append(i);s.append(b);}
+}
+function choose(d){
+  status('Mehrere Spieler gefunden. Wähle einen aus:');
+  const box=el('div','opts');
+  d.options.forEach(o=>{const a=el('a');a.href='/jungle?q='+encodeURIComponent(o.n);a.append(el('b',null,'#'+o.r),o.n);a.addEventListener('click',e=>{e.preventDefault();start(o.n);});box.append(a);});
+  $('out').textContent='';$('out').append(box);
+}
+
+function render(d){
+  if(d.state==='error'){status(d.error,true);$('out').textContent='';return;}
+  lastD=d;
+  if(d.state==='queued')status(d.pos>1?`In der Warteschlange: Platz ${d.pos}. Es läuft immer nur eine Suche gleichzeitig.`:'Die Suche startet gleich …');
+  else if(d.state==='running')d.total?status(`Lade Spiele … ${d.loaded} von ${d.total}`,false,d.loaded/d.total):status('Suche läuft … Spieler und Rang werden geladen.');
+  else status(d.matches.length?'':'Für diesen Spieler wurden keine Flex-Spiele gefunden.');
+  const out=$('out');out.textContent='';
+  if(d.prof)out.append(head(d.prof));
+  const real=d.matches.filter(m=>!m.e);
+  if(real.length)out.append(body(real,d.state==='done'));
+  if(d.state==='done'&&d.cached)out.append(el('p','muted small','Dieses Ergebnis stammt aus dem Zwischenspeicher und wird nach etwa 15 Minuten neu geladen.'));
+}
+function head(p){
+  const box=el('section','prof'),left=el('div');left.append(el('h2',null,p.name||'Spieler'));
+  const b=el('div','badges');
+  if(p.tier){b.append(el('span','badge gold',(TIER[p.tier]||p.tier)+(APEX.includes(p.tier)||!p.div?'':' '+p.div)+' · '+p.lp+' LP'));if(p.rank)b.append(el('span','badge','Platz #'+p.rank+' der Flex-Ladder'));}
+  else if(p.unranked)b.append(el('span','badge','Kein Flex-Rang'));
+  left.append(b);box.append(left);
+  if(p.name){const a=el('a','btn ghost','Alle Spiele ansehen');a.href='/player?q='+encodeURIComponent(p.name);box.append(a);}
+  return box;
+}
+function body(ms,final){
+  const jg=ms.filter(m=>m.pos==='JUNGLE'),n=ms.length,share=jg.length/n,box=el('div');
+  const sum=el('section','sum');
+  const t1=el('div','tile');t1.append(el('b',null,Math.round(100*share)+' %'),el('span',null,jg.length+' von '+n+' Spielen als Jungle'));
+  const w=jg.filter(m=>m.w).length;
+  const t2=el('div','tile');t2.append(el('b',null,jg.length?Math.round(100*w/jg.length)+' %':'–'),el('span',null,jg.length?`Winrate im Jungle (${w} / ${jg.length-w})`:'Kein Jungle-Spiel'));
+  let k=0,de=0,a=0,cs=0,mins=0;jg.forEach(m=>{k+=m.k;de+=m.de;a+=m.a;cs+=m.cs;mins+=m.d/60;});
+  const t3=el('div','tile');t3.append(el('b',null,jg.length?f1(kdaR(k,de,a))+' KDA':'–'),el('span',null,jg.length?`Ø ${f1(k/jg.length)} / ${f1(de/jg.length)} / ${f1(a/jg.length)}`:''));
+  const t4=el('div','tile'),verdict=!jg.length?'Kein Jungler':share>SHARE?'Jungler':'Gelegentlich Jungle';
+  t4.append(el('b',null,verdict),el('span',null,share>SHARE?'Mehr als 70 % der Spiele im Jungle':'Jungler ab mehr als 70 % der Spiele'));
+  sum.append(t1,t2,t3,t4);box.append(sum);
+  const cv=T.carry(jg,'Carry-Score im Jungle');if(cv)box.append(cv);
+  if(!final)box.append(el('p','muted small','Die Werte ändern sich noch, bis alle Spiele geladen sind.'));
+  if(!jg.length)return box;
+  const by={};jg.forEach(m=>{const c=by[m.c]||(by[m.c]={n:0,w:0,k:0,d:0,a:0,cs:0,t:0});c.n++;if(m.w)c.w++;c.k+=m.k;c.d+=m.de;c.a+=m.a;c.cs+=m.cs;c.t+=m.d/60;});
+  const rows=Object.entries(by).sort((x,y)=>y[1].n-x[1].n||y[1].w-x[1].w);
+  box.append(el('h2',null,'Jungle-Champions'));
+  const sc=el('div','scroll'),tb=el('table','jgc'),thead=tb.createTHead().insertRow();
+  ['Champion','Spiele','Winrate','KDA','CS/min'].forEach((h,i)=>{const c=el('th',null,h);if(i)c.className='num';thead.append(c);});
+  const body=tb.createTBody();
+  rows.forEach(([c,v])=>{
+    const tr=body.insertRow(),ch=T.champ(c),cell=tr.insertCell(),w=el('span','chm');w.append(T.icon(c,26),ch.name);cell.append(w);
+    const add=(x)=>{const e=tr.insertCell();e.textContent=x;e.className='num';};
+    add(v.n);add(Math.round(100*v.w/v.n)+' % ('+v.w+'/'+(v.n-v.w)+')');add(f1(kdaR(v.k,v.d,v.a)));add(f1(v.cs/Math.max(1,v.t)));
+  });
+  sc.append(tb);box.append(sc);
+  const others=ms.filter(m=>m.pos!=='JUNGLE'&&m.pos),oc={};others.forEach(m=>oc[m.pos]=(oc[m.pos]||0)+1);
+  const R={TOP:'Top',MIDDLE:'Mid',BOTTOM:'Bot',UTILITY:'Support'};
+  if(others.length)box.append(el('p','muted small','Andere Rollen in diesen Spielen: '+Object.entries(oc).sort((x,y)=>y[1]-x[1]).map(([r,c])=>(R[r]||r)+' '+c).join(', ')+'.'));
+  return box;
+}
+
+async function pollEarly(q,my){
+  if(my!==run)return;
+  let r,d;
+  try{r=await fetch('/api/early?q='+encodeURIComponent(q));d=await r.json();}catch(e){return;}
+  if(my!==run)return;
+  if(!r.ok){early={state:'error',error:d.error||'Early-Game-Daten nicht verfügbar.'};}
+  else early=d;
+  paintEarly();
+  if(r.ok&&(d.state==='queued'||d.state==='running'))etimer=setTimeout(()=>pollEarly(q,my),1500);
+}
+function paintEarly(){
+  let box=$('early');
+  if(!box){box=el('section','early');box.id='early';const o=$('out'),note=o.querySelector('p.muted.small:last-child');o.append(box);}
+  box.textContent='';
+  const e=early;if(!e)return;
+  box.append(el('h2',null,'Early Game'));
+  if(e.state==='error'){box.append(el('p','muted',e.error));return;}
+  if(e.state==='queued'){box.append(el('p','muted',e.pos>1?`Early-Game-Daten warten in der Schlange (Platz ${e.pos}).`:'Early-Game-Daten werden gleich geladen …'));return;}
+  const r=e.result;
+  if(e.state==='running'||!r){box.append(el('p','muted','Lade Early-Game-Daten … '+e.loaded+' von '+e.total+' Spielen'));if(!r||!r.n)return;}
+  if(!r.n){box.append(el('p','muted','Keine auswertbaren Jungle-Spiele gefunden.'));return;}
+  const pc=(a,b)=>b?Math.round(100*a/b)+' %':'–';
+  const sum=el('section','sum');
+  const s1=el('div','tile');s1.append(el('b',null,'Blue '+pc(r.start.blue,r.n)+' · Red '+pc(r.start.red,r.n)),el('span',null,'Startseite (erstes Buff-Camp)'+(r.start.invade+r.start.other?`, ${r.start.invade} Invade-Starts, ${r.start.other} unklar`:'')));
+  const s2=el('div','tile');s2.append(el('b',null,pc(r.invGames,r.n)),el('span',null,`Spiele mit Invade in den ersten 5 Min. (${r.invGames} von ${r.n})`));
+  const s3=el('div','tile');s3.append(el('b',null,r.invSeen?pc(r.invFrames,r.invSeen):'–'),el('span',null,'Zeit im gegnerischen Jungle, Minute 2 bis 5'));
+  const s4=el('div','tile');s4.append(el('b',null,String(r.gankTotal)),el('span',null,'Kills und Assists bis Minute 14 ('+r.n+' Spiele)'));
+  sum.append(s1,s2,s3,s4);box.append(sum);
+  box.append(el('h3',null,'Wo er Kills und Assists bekommt (bis Minute 14)'));
+  const bars=el('div','ebars'),L=[['top','Top'],['mid','Mid'],['bot','Bot'],['jg','Jungle/Fluss']];
+  L.forEach(([k,n])=>{const v=r.g[k],row=el('div','eb'),m=el('div','meter'),i=el('i');i.style.width=(r.gankTotal?Math.round(100*v/r.gankTotal):0)+'%';m.append(i);row.append(el('span',null,n),m,el('span',null,pc(v,r.gankTotal)+' ('+v+')'));bars.append(row);});
+  box.append(bars);
+  box.append(el('p','muted small','So wird gerechnet: Die Startseite ergibt sich aus der Position bei Minute 2 und 3 (Riot speichert die Position nur einmal pro Minute, es ist also eine Näherung). Als Invade gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war. Gezählt werden nur Ganks mit Kill oder Assist, Ganks ohne Ergebnis sind in den Daten nicht sichtbar. Das Ergebnis ist aus höchstens '+(e.max||20)+' Jungle-Spielen.'));
+}
+$('f').addEventListener('submit',e=>{e.preventDefault();start($('q').value);});
+const q0=new URLSearchParams(location.search).get('q');
+if(q0)start(q0);
 </script></body></html>

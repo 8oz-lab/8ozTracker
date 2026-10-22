@@ -39,6 +39,25 @@
     const a = el('a', cls || 'plink', name || ('Spieler #' + rank)); a.href = '/player?q=' + encodeURIComponent(name || ('#' + rank));
     return a;
   };
+
+  // Carry-Score: Mittelwert der Spielwerte (0-100, 50 = Durchschnitt im Spiel) und der sechs Faktoren
+  const FACT = [['dmg', 'Schaden an Champions', 30], ['kda', 'KDA', 20], ['kp', 'Killbeteiligung', 20], ['gold', 'Gold', 10], ['dth', 'Wenige Tode', 10], ['obj', 'Schaden an Zielen', 10]];
+  T.scoreLabel = v => v >= 68 ? 'Hard Carry' : v >= 58 ? 'Carry' : v >= 45 ? 'Solide' : v >= 35 ? 'Unter dem Schnitt' : 'Schwach';
+  T.scoreCls = v => v >= 68 ? 'sc-hi' : v >= 58 ? 'sc-up' : v >= 45 ? 'sc-mid' : 'sc-lo';
+  T.carry = function (ms, title) {
+    const g = ms.filter(m => m.sc != null); if (!g.length) return null;
+    const avg = f => g.reduce((a, m) => a + f(m), 0) / g.length, sc = Math.round(avg(m => m.sc));
+    const box = el('section', 'carry'), left = el('div', 'cleft');
+    left.append(el('div', 'clab', title || 'Carry-Score'), el('div', 'cnum ' + T.scoreCls(sc), String(sc)), el('div', 'csub', T.scoreLabel(sc) + ' · Ø aus ' + g.length + ' Spielen'));
+    const rt = el('div', 'cfac');
+    FACT.forEach(([k, name, w]) => {
+      const v = Math.round(avg(m => m.sf[k])), row = el('div', 'cf');
+      const top = el('div', 'cft'); top.append(el('span', null, name), el('span', 'muted small', 'Gewicht ' + w + ' %'), el('b', null, String(v)));
+      const bar = el('div', 'meter'), i = el('i'); i.style.width = v + '%'; bar.append(i); row.append(top, bar); rt.append(row);
+    });
+    box.append(left, rt, el('p', 'muted small cnote', 'So wird gerechnet: In jedem Spiel wird der Spieler mit allen 10 Teilnehmern verglichen (Platz 1 = 100, letzter Platz = 0, 50 = Durchschnitt). Die sechs Faktoren werden gewichtet addiert und über die Spiele gemittelt. Supports und Tanks haben bei „Schaden“ naturgemäß niedrigere Werte.'));
+    return box;
+  };
   function team(g, t, label) {
     const box = el('div', 'team'); box.append(el('h4', null, label));
     g.players.filter(p => p.t === t).forEach(p => {

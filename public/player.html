@@ -67,7 +67,7 @@ function render(d){
   }
   const out=$('out');out.textContent='';
   if(d.prof)out.append(profile(d.prof,d.matches));
-  if(d.matches.length){out.append(summary(d.matches));out.append(list(d.matches));}
+  if(d.matches.length){const cv=T.carry(d.matches.filter(m=>!m.e),'Carry-Score (alle Rollen)');if(cv)out.append(cv);out.append(summary(d.matches));out.append(list(d.matches));}
   if(d.state==='done'&&d.cached)out.append(el('p','muted small','Dieses Ergebnis stammt aus dem Zwischenspeicher und wird nach etwa 15 Minuten neu geladen.'));
 }
 
@@ -117,7 +117,7 @@ function list(ms){
 function match(m){
   const cls=m.e?'rm':m.w?'win':'loss',wrap=el('div','m '+cls);
   const head=el('button','mh');head.type='button';
-  const res=el('div','res');res.append(el('div',null,m.e?'Remake':m.w?'Sieg':'Niederlage'),el('div','muted small',dur(m.d)));
+  const res=el('div','res');res.append(el('div',null,m.e?'Remake':m.w?'Sieg':'Niederlage'),el('div','muted small',dur(m.d)));if(m.sc!=null&&!m.e){const b=el('span','msc '+T.scoreCls(m.sc),'Score '+m.sc);b.title='Carry-Score dieses Spiels: '+T.scoreLabel(m.sc);res.append(b);}
   const c0=el('div','c0');c0.append(T.icon(m.c,44));
   const kd=el('div','kda');
   kd.append(el('div','cn small',T.champ(m.c).name+(m.pos&&ROLE[m.pos]?' · '+ROLE[m.pos]:'')));

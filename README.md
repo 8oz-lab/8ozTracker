@@ -23,13 +23,12 @@ Dann im Browser `http://localhost:3000` öffnen.
 | `INGAME_RECHECK_SEC` | 360 | Kontrollprüfung bei Spielern im Spiel (das Spielende meldet vor allem die Ladder) |
 | `LADDER_REFRESH_SEC` | 120 | Wie oft die Ladder neu geladen wird (3 Abfragen). Steigt die Spielzahl eines Spielers, ist sein Spiel beendet |
 | `CUTOFF_RANKS` | `200,700,1000` | Ladder-Plätze, deren LP auf `/live` als LP-Grenzen angezeigt werden (durch Komma getrennt) |
-| `JUNGLE_MIN_GAMES` | 5 | Mindestanzahl beobachteter Spiele für „Jungle Tendencies“ (auf der Seite zusätzlich zwischen 3, 5 und 10 umschaltbar) |
-| `JUNGLE_MIN_SHARE` | 0.7 | Mindestanteil an Jungle-Spielen (mehr als 70 %) |
 | `SEARCH_GAMES` | 20 | Wie viele letzte Flex-Spiele die Spielersuche lädt (max. 50) |
 | `SEARCH_CACHE_SEC` | 900 | So lange wird das Ergebnis einer Suche wiederverwendet (0 Abfragen) |
 | `SEARCH_PER_HOUR` | 8 | Neue Suchen pro Besucher und Stunde (Schutz vor Leerlaufen des Kontingents) |
 | `SEARCH_QUEUE_MAX` | 10 | Wie viele Suchen höchstens warten dürfen |
 | `MATCH_CACHE_MAX` | 3000 | Wie viele Spiele im Speicher gemerkt werden (Spiele ändern sich nie) |
+| `EARLY_GAMES` | 20 | Wie viele Jungle-Spiele für „Early Game“ per Timeline ausgewertet werden (max. 30) |
 | `NAME_FILL_EVERY` | 30 | Fehlende Namen für das Leaderboard: bei jeder n-ten Abfrage einen nachladen |
 | `DATA_FILE` | `state.json` | Datei, in der PUUIDs und Namen für Neustarts gesichert werden |
 
@@ -57,7 +56,16 @@ Auf `/live` zeigen drei Kacheln die LP des Spielers auf Platz 200, 700 und 1000 
 
 ## Jungle Tendencies
 
-`/jungle` zeigt bis zu 30 Spieler der Top 1000 (nach Ladder-Rang), die in mehr als 70 % ihrer beobachteten Flex-Spiele Jungle gespielt haben, mit ihren meistgespielten Jungle-Champions. Die Rolle liefert die Riot-API in der Live-Abfrage nicht, deshalb gilt als Jungle, wer Smite (Zauber-ID 11 bzw. 711) dabeihatte. Gezählt werden nur Flex-Spiele, die der Tracker live sieht, jedes Spiel einmal pro Spieler. Das kostet keine zusätzlichen Riot-Abfragen. Die Zähler stehen in `state.json`; geht die Datei verloren, beginnt die Statistik bei null. Liefert die API keine Zauber, wird nichts gezählt (statt falsch zu zählen), und die Seite weist darauf hin. Die Daten liefert `/api/jungle` (optional `?min=` für die Mindestanzahl Spiele).
+`/jungle` ist die Spielersuche mit Fokus auf die Jungle-Rolle: Du suchst einen Spieler (Name#Tag, bei Top-1000-Spielern auch Name oder `#Platz`) und siehst, wie oft er in seinen letzten 20 Flex-Spielen Jungle gespielt hat (Jungler ab mehr als 70 %), Winrate und KDA im Jungle, den Carry-Score im Jungle und eine Tabelle seiner Jungle-Champions. Die Rolle stammt aus den Spieldaten von Match-V5 (`teamPosition`) und ist exakt.
+
+**Early Game** (zusätzlich, 1 Abfrage pro Jungle-Spiel, höchstens `EARLY_GAMES`; Timelines werden gemerkt): Die Seite lädt es nach der Suche automatisch nach.
+- Startseite: Position bei Minute 2 und 3 nahe Blue- oder Red-Buff des eigenen Teams (Näherung, Riot speichert die Position nur einmal pro Minute).
+- Invade: Als Invade-Spiel gilt, wer bei mindestens 2 der 4 Messpunkte (Minute 2 bis 5) im gegnerischen Jungle war; zusätzlich der Anteil der Zeit dort.
+- Gank-Lanes: Kills und Assists des Junglers bis Minute 14, nach Lane des Ortes (Top, Mid, Bot, Jungle/Fluss). Ganks ohne Kill oder Assist sind in den Daten nicht sichtbar.
+
+## Carry-Score
+
+Auf `/player` (alle Rollen) und `/jungle` (nur Jungle-Spiele). In jedem Spiel wird der Spieler mit allen 10 Teilnehmern verglichen (bester Wert = 100, schlechtester = 0, 50 = Durchschnitt). Gewichtung: Schaden an Champions 30 %, KDA 20 %, Killbeteiligung 20 %, Gold 10 %, wenige Tode 10 %, Schaden an Zielen 10 %. Der Score ist der Mittelwert über die letzten 20 Spiele; je Spiel wird er ebenfalls angezeigt. Kostet keine zusätzlichen Abfragen. Stufen: ab 68 Hard Carry, ab 58 Carry, ab 45 Solide, ab 35 unter dem Schnitt, darunter Schwach. Supports und Tanks erreichen bei „Schaden“ systembedingt niedrigere Werte.
 
 ## Spielersuche
 
