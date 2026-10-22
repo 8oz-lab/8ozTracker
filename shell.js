@@ -4,11 +4,11 @@
   const path = location.pathname.replace(/\.html$/, '').replace(/index$/, '') || '/';
   const nav = pages.map(([h, t]) => `<a href="${h}"${h === path ? ' aria-current="page"' : ''}>${t}</a>`).join('');
   document.body.insertAdjacentHTML('afterbegin',
-    `<header><div class="wrap"><a class="logo" href="/"><img src="/img/logo.webp" alt="8oz Tracker" width="223" height="52"></a><nav>${nav}</nav><form class="hs" action="/player" method="get" role="search"><input type="search" name="q" placeholder="${tt('Spieler suchen: Name#Tag')}" aria-label="${tt('Spieler suchen')}" maxlength="60" autocomplete="off"></form><div class="lang" role="group" aria-label="${tt('Sprache')}"><button type="button" data-l="de" aria-pressed="${I18N.lang === 'de'}" title="Deutsch">DE</button><button type="button" data-l="en" aria-pressed="${I18N.lang === 'en'}" title="English">EN</button></div></div></header>`);
+    `<header><div class="wrap"><a class="logo" href="/"><img src="/img/logo.webp" alt="8oz Tracker" width="275" height="52"></a><nav>${nav}</nav><div class="lang" role="group" aria-label="${tt('Sprache')}"><button type="button" data-l="de" aria-pressed="${I18N.lang === 'de'}" title="Deutsch">DE</button><button type="button" data-l="en" aria-pressed="${I18N.lang === 'en'}" title="English">EN</button></div></div></header>`);
   document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => { if (b.dataset.l !== I18N.lang) I18N.set(b.dataset.l); }));
   try { const a = document.querySelector('nav a[aria-current]'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) { /* egal */ }
   document.body.insertAdjacentHTML('beforeend',
-    `<footer><div class="wrap"><p>8oz Tracker isn’t endorsed by Riot Games and doesn’t reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p></div></footer>`);
+    `<footer><div class="wrap"><div class="fgrid"><div class="fbrand"><a class="logo" href="/"><img src="/img/logo.webp" alt="8oz Tracker" width="206" height="39"></a><p class="muted small">${tt('Live-Tracker der EUW-Flex-Spitze')}</p></div><nav class="fnav" aria-label="Footer">${pages.map(([h, t]) => `<a href="${h}">${t}</a>`).join('')}<a href="/player">${tt('Spielersuche')}</a></nav></div><p class="disc">8oz Tracker isn’t endorsed by Riot Games and doesn’t reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p></div></footer>`);
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const T = window.T = {
@@ -115,5 +115,29 @@
     tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tr.click(); } });
     set(T.open.has(p.id));
   };
+  // Mini-Übersicht: freie Riot-Abfragen (Zähler des Servers je Region)
+  (function () {
+    const box = el('aside', 'budget'); box.setAttribute('aria-label', tt('Riot-Anfragen frei'));
+    box.append(el('div', 'bt', tt('Riot-Anfragen frei')));
+    const rows = {};
+    [['euw1', 'Live-Tracking'], ['europe', 'Suche und Spiele']].forEach(([k, label]) => {
+      const row = el('div', 'br'), v = el('b', null, '–'), bar = el('div', 'bbar'), fill = el('i');
+      bar.append(fill); row.append(el('span', null, tt(label)), v, bar); box.append(row); rows[k] = { v, fill, row };
+    });
+    document.body.append(box);
+    async function poll() {
+      try {
+        const d = await (await fetch('/api/budget')).json();
+        for (const k in rows) {
+          const x = d[k]; if (!x) continue;
+          rows[k].v.textContent = x.free + ' / ' + x.n;
+          const f = x.n ? x.free / x.n : 0; rows[k].fill.style.width = Math.round(f * 100) + '%';
+          rows[k].row.className = 'br ' + (f < 0.15 ? 'low' : f < 0.4 ? 'mid' : 'ok');
+          rows[k].row.title = tt('{f} von {n} Anfragen frei (Limit: {n} je {s} Sekunden)', { f: x.free, n: x.n, s: x.s });
+        }
+      } catch (e) { /* Server gerade nicht erreichbar */ }
+    }
+    poll(); setInterval(poll, 4000);
+  })();
   I18N.apply();
 })();

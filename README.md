@@ -83,9 +83,18 @@ Es läuft immer nur eine Suche gleichzeitig, weitere warten in einer Schlange (`
 
 Oben rechts schaltet DE/EN die Sprache um. Gespeichert wird sie nur lokal im Browser (localStorage, keine Cookies); ohne Auswahl gilt die Browsersprache (Deutsch bei deutschen Browsern, sonst Englisch). Alle Texte stehen in `public/i18n.js` (Schlüssel = deutscher Text, Werte = Englisch). Neue Texte im Code mit `tt('Text', {platzhalter})` ausgeben, statische HTML-Elemente mit `data-i18n` markieren und den englischen Text in `i18n.js` ergänzen. Champion-Namen kommen je Sprache aus Data Dragon (`/api/champions?lang=en`), Fehlermeldungen des Servers liefern Vorlage und Werte mit (`et`, `ev`), damit sie in der gewählten Sprache erscheinen.
 
+## Anzeige freier Abfragen
+
+Unten rechts zeigt eine kleine Übersicht, wie viele Riot-Abfragen im längsten Limit-Fenster (Dev-Key: 100 je 2 Minuten) gerade frei sind, getrennt für das Live-Tracking (`euw1`) und die Suche (`europe`: Account und Match). Grün/gelb/rot nach Restmenge. Der Wert kommt aus dem eigenen Zähler des Servers (`/api/budget`) und kennt nur Abfragen dieser App, keine anderen Programme mit demselben Key. Das Live-Tracking nutzt sein Kontingent fast immer aus, ein niedriger Wert dort ist normal.
+
 ## Hosting als Node.js Web-App
 
 - Dateien hochladen oder per GitHub verbinden, Startdatei `server.js` (bzw. Start-Befehl `npm start`), Node 18 oder neuer.
 - `RIOT_API_KEY` als Umgebungsvariable beim Hoster eintragen, nie in den Code schreiben.
 - Der Dev-Key läuft nach 24 Stunden ab und darf nicht für eine öffentliche Seite genutzt werden. Für den öffentlichen Betrieb brauchst du den Production-Key.
 - Die App muss dauerhaft laufen, weil sie im Hintergrund abfragt. Prüfe, ob dein Tarif Dauerprozesse erlaubt.
+
+## Design und Logo
+- Logo, Emblem und Favicon liegen in `public/img/` (`logo.webp`, `emblem.webp`, `favicon.png`) mit transparentem Hintergrund und passen sich dem dunklen Seitenhintergrund an.
+- Das Erscheinungsbild (Kopfzeile, Startseite, Karten, Fußzeile, Über-Seite) steckt im letzten Block von `public/style.css`.
+- Der Text der Seite „Über“ steht in `public/about.html` (englische Fassung in `public/i18n.js`).

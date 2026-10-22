@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="de"><head><meta charset="utf-8"><meta name="description" content="Live-Tracker der EUW-Flex-Spitze: Wer aus den Top 1000 spielt gerade Flex? Mit Leaderboard, LP-Grenzen, Spielersuche und Jungle-Analyse."><meta property="og:title" content="8oz Tracker – EUW Flex Live"><meta property="og:image" content="/img/emblem.webp"><meta name="theme-color" content="#0e0e14"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>8oz Tracker: EUW Flex Live</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
 <body><main><div class="wrap">
   <section class="hero">
     <div>
+      <span class="eyebrow" data-i18n>EUW Flex · Challenger bis Master</span>
       <h1 data-i18n>Wer aus der EUW-Flex-Spitze spielt gerade Flex?</h1>
       <p class="muted" data-i18n>Der Tracker prüft die Top 1000 der Flex-Ladder auf EUW und zeigt live, wer sich gerade in einem Flex-Spiel befindet.</p>
       <div class="btns"><a class="btn" href="/live" data-i18n>Live ansehen</a><a class="btn ghost" href="/about" data-i18n>Über das Projekt</a></div>
@@ -13,11 +14,18 @@
         <div class="stat"><b id="c">–</b><span data-i18n>bereits geprüft</span></div>
       </div>
     </div>
-    <img class="art" src="/img/emblem.webp" alt="" width="561" height="520">
+    <img class="art" src="/img/emblem.webp" alt="" width="561" height="519">
   </section>
   <h2 data-i18n>Jetzt im Flex-Spiel</h2>
   <div class="card" id="prev"><div class="row muted" data-i18n>Daten werden geladen …</div></div>
   <p style="margin-top:14px"><a href="/live" data-i18n>Alle anzeigen</a></p>
+  <h2 data-i18n>Das kannst du hier tun</h2>
+  <section class="tools">
+    <a class="tool" href="/live"><span class="ti">●</span><h3 data-i18n>Live verfolgen</h3><p class="muted" data-i18n>Alle Spieler der Top 1000, die gerade im Flex-Spiel sind, mit Champions, Teams und Bans.</p></a>
+    <a class="tool" href="/leaderboard"><span class="ti">▲</span><h3 data-i18n>Leaderboard</h3><p class="muted" data-i18n>Die komplette Top 1000 mit LP, Winrate und Rangänderungen.</p></a>
+    <a class="tool" href="/jungle"><span class="ti">✦</span><h3 data-i18n>Jungle Tendencies</h3><p class="muted" data-i18n>Startseite, Invades, Ganks und Spielstil eines Junglers aus den letzten 20 Spielen.</p></a>
+    <a class="tool" href="/player"><span class="ti">⌕</span><h3 data-i18n>Spielersuche</h3><p class="muted" data-i18n>Rang, Carry-Score und die letzten 20 Flex-Spiele jedes EUW-Spielers.</p></a>
+  </section>
   <h2 data-i18n>So funktioniert es</h2>
   <section class="facts">
     <div class="fact"><h3 data-i18n>Top 1000 der Ladder</h3><p class="muted" data-i18n>Grundlage sind Challenger, Grandmaster und Master der EUW-Flex-Queue, sortiert nach LP.</p></div>

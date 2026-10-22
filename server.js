@@ -89,6 +89,23 @@ async function slot(url, prio) {
   } finally { if (prio) prioWaiting--; }
 }
 
+
+// Freie Riot-Abfragen laut eigenem Zähler (je Region getrennt, im längsten Limit-Fenster)
+function budget() {
+  const t = Date.now(), out = {};
+  for (const [host, name] of [['euw1.api.riotgames.com', 'euw1'], ['europe.api.riotgames.com', 'europe']]) {
+    const hist = buckets[host];
+    const win = LIMITS.map((l, i) => {
+      const h = hist ? hist[i] : [];
+      while (h.length && t - h[0] >= l.w) h.shift();
+      return { n: l.n, s: l.w / 1000, used: h.length, free: Math.max(0, l.n - h.length) };
+    });
+    const tight = win.reduce((a, b) => (b.s > a.s ? b : a)); // maßgeblich ist das längste Fenster (Dev-Key: 100 Abfragen je 2 Minuten)
+    out[name] = { free: tight.free, n: tight.n, s: tight.s, windows: win };
+  }
+  return out;
+}
+
 async function riot(url, prio) {
   for (;;) {
     await slot(url, prio);
@@ -598,6 +615,10 @@ app.get('/api/status', (req, res) => {
                         ladderLagAvgMin: stats.lagN ? Math.round(stats.lagSum / stats.lagN / 6000) / 10 : null, samples: stats.lagN } }, now: t });
 });
 
+app.get('/api/budget', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=2');
+  res.json({ now: Date.now(), ...budget() });
+});
 app.get('/api/leaderboard', (req, res) => {
   res.set('Cache-Control', 'public, max-age=30');
   const list = [...players.values()].filter(p => p.rank).sort((a, b) => a.rank - b.rank)
