@@ -2,23 +2,23 @@
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Leaderboard: 8oz Tracker</title><link rel="icon" href="/img/favicon.png"><link rel="stylesheet" href="/style.css"></head>
 <body><main><div class="wrap">
-  <h1>Leaderboard</h1>
-  <p class="muted" id="meta">Lade Daten …</p>
+  <h1 data-i18n>Leaderboard</h1>
+  <p class="muted" id="meta" data-i18n>Lade Daten …</p>
   <div class="bar">
-    <div><span class="count" id="count">–</span> <span class="muted">gerade im Flex-Spiel</span></div>
-    <input type="search" id="q" placeholder="Name oder Rang suchen" aria-label="Name oder Rang suchen">
+    <div><span class="count" id="count">–</span> <span class="muted" data-i18n>gerade im Flex-Spiel</span></div>
+    <input type="search" id="q" placeholder="Name oder Rang suchen" aria-label="Name oder Rang suchen" data-ia="placeholder|aria-label">
   </div>
   <div class="scroll"><table>
-    <thead><tr><th>Rang</th><th title="Letzte Rangänderung">Änd.</th><th>Spieler</th><th class="hide-s">Tier</th><th>LP</th><th class="hide-s">Siege / Niederl.</th><th>Winrate</th><th>Status</th></tr></thead>
+    <thead><tr><th data-i18n>Rang</th><th title="Letzte Rangänderung" data-ia="title" data-i18n>Änd.</th><th data-i18n>Spieler</th><th class="hide-s" data-i18n>Tier</th><th data-i18n>LP</th><th class="hide-s" data-i18n>Siege / Niederl.</th><th data-i18n>Winrate</th><th data-i18n>Status</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
-  <p><button class="btn ghost" id="more" hidden>Mehr anzeigen</button></p>
+  <p><button class="btn ghost" id="more" hidden data-i18n>Mehr anzeigen</button></p>
 </div></main>
-<script src="/shell.js"></script>
+<script src="/i18n.js"></script><script src="/shell.js"></script>
 <script>
 const $=id=>document.getElementById(id), TIER={challenger:'Challenger',grandmaster:'Grandmaster',master:'Master'};
 let data=null, shown=100;
-async function load(){try{data=await (await fetch('/api/leaderboard')).json();data.fetched=Date.now();render();}catch(e){$('meta').textContent='Server nicht erreichbar. Neuer Versuch in 60 Sekunden.';}}
+async function load(){try{data=await (await fetch('/api/leaderboard')).json();data.fetched=Date.now();render();}catch(e){$('meta').textContent=tt('Server nicht erreichbar. Neuer Versuch in 60 Sekunden.');}}
 function cell(tr,text,cls){const c=tr.insertCell();c.textContent=text;if(cls)c.className=cls;return c;}
 function render(){
   if(!data)return;
@@ -26,20 +26,20 @@ function render(){
   const all=data.list, list=all.filter(p=>!q||String(p.r)===q||(!byRank&&(p.n||'').toLowerCase().includes(q)));
   $('count').textContent=all.filter(p=>p.i).length;
   const m=data.updated?T.mins({now:data.now,fetched:data.fetched},data.updated):null;
-  $('meta').textContent=all.length?`Top ${all.length} der EUW-Flex-Ladder. Stand der Ladder: ${m<1?'gerade eben':'vor '+m+' min'}.`:'Die Ladder wird geladen. Das dauert beim ersten Start einen Moment.';
+  $('meta').textContent=all.length?tt('Top {n} der EUW-Flex-Ladder. Stand der Ladder: {w}.',{n:all.length,w:T.when(m)}):tt('Die Ladder wird geladen. Das dauert beim ersten Start einen Moment.');
   const rows=$('rows');rows.textContent='';
-  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=8;td.className='empty';td.textContent=q?'Kein Treffer.':'Noch keine Daten.';$('more').hidden=true;return;}
+  if(!list.length){const td=rows.insertRow().insertCell();td.colSpan=8;td.className='empty';td.textContent=tt(q?'Kein Treffer.':'Noch keine Daten.');$('more').hidden=true;return;}
   for(const p of list.slice(0,shown)){
     const tr=rows.insertRow(),g=p.w+p.l;
     cell(tr,'#'+p.r,'num rank');
     const d=p.d>0?cell(tr,'▲'+p.d,'num up'):p.d<0?cell(tr,'▼'+(-p.d),'num down'):cell(tr,'–','num muted');
-    d.title=p.d>0?'Zuletzt um '+p.d+' Plätze gestiegen':p.d<0?'Zuletzt um '+(-p.d)+' Plätze gefallen':'Keine Änderung erfasst';
+    d.title=p.d>0?tt('Zuletzt um {n} Plätze gestiegen',{n:p.d}):p.d<0?tt('Zuletzt um {n} Plätze gefallen',{n:-p.d}):tt('Keine Änderung erfasst');
     const n=tr.insertCell();n.append(T.plink(p.n,p.r));if(!p.n)n.className='muted';
     cell(tr,TIER[p.t]||'','hide-s');cell(tr,p.lp,'num');
     cell(tr,p.w+' / '+p.l,'num hide-s');cell(tr,g?Math.round(100*p.w/g)+' %':'–','num');
-    const s=tr.insertCell();if(p.i){const dot=document.createElement('span');dot.className='live';s.append(dot,' im Spiel');s.className='ing';}else{s.textContent='–';s.className='muted';}
+    const s=tr.insertCell();if(p.i){const dot=document.createElement('span');dot.className='live';s.append(dot,tt(' im Spiel'));s.className='ing';}else{s.textContent='–';s.className='muted';}
   }
-  $('more').hidden=list.length<=shown;$('more').textContent=`Mehr anzeigen (${list.length-shown} weitere)`;
+  $('more').hidden=list.length<=shown;$('more').textContent=tt('Mehr anzeigen ({n} weitere)',{n:list.length-shown});
 }
 $('q').addEventListener('input',()=>{shown=100;render();});
 $('more').addEventListener('click',()=>{shown+=100;render();});
