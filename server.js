@@ -595,6 +595,8 @@ setInterval(() => {
 
 // --- Web ---
 const app = express();
+// Riot-Verifizierung (auch mit doppeltem Schrägstrich //riot.txt erreichbar)
+app.get(/^\/+riot\.txt$/, (req, res) => { res.type('text/plain'); res.sendFile(require('path').join(__dirname, 'public', 'riot.txt')); });
 app.use('/img', express.static('public/img', { maxAge: '7d' }));
 app.use(express.static('public', { extensions: ['html'], maxAge: '1h' }));
 // Champion, den der Spieler im zuletzt gesehenen Spiel gespielt hat (aus den ohnehin gespeicherten Spieldaten)
